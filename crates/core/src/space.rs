@@ -1,7 +1,7 @@
 //! Large files, folder drill-down and pre-aggregated chart data (M2).
 
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 use std::path::Path;
 
 use crate::errors::AppError;
@@ -160,6 +160,14 @@ pub fn get_children(
         .ok_or_else(|| AppError::NotFound(format!("node {node}")))?;
     let parent_total = parent.total_alloc;
     let mut ids: Vec<NodeId> = tree.children(node).collect();
+    // Lowercase each name once, not twice per comparison.
+    let lower: HashMap<NodeId, Vec<u8>> = if sort == SortKey::Name {
+        ids.iter()
+            .map(|id| (*id, tree.name(*id).to_ascii_lowercase()))
+            .collect()
+    } else {
+        HashMap::new()
+    };
     ids.sort_by(|a, b| {
         let (na, nb) = match (tree.node(*a), tree.node(*b)) {
             (Some(x), Some(y)) => (x, y),
@@ -169,10 +177,7 @@ pub fn get_children(
             SortKey::Size => na.total_alloc.cmp(&nb.total_alloc),
             SortKey::Count => na.file_count.cmp(&nb.file_count),
             SortKey::Modified => na.mtime.cmp(&nb.mtime),
-            SortKey::Name => tree
-                .name(*a)
-                .to_ascii_lowercase()
-                .cmp(&tree.name(*b).to_ascii_lowercase()),
+            SortKey::Name => lower.get(a).cmp(&lower.get(b)),
         };
         // Stable, deterministic tie-break.
         let ord = ord.then_with(|| a.cmp(b));

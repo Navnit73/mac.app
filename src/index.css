@@ -244,6 +244,15 @@ input[aria-invalid='true']:focus {
   background-clip: content-box;
 }
 
+/* Sunburst: dim every arc but the one under the pointer or focus, without a React render. */
+.sunburst-arcs path {
+  transition: opacity 0.1s;
+}
+.sunburst-arcs:has(path:hover) path:not(:hover),
+.sunburst-arcs:has(path:focus-visible) path:not(:focus-visible) {
+  opacity: 0.55;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.01ms !important;

@@ -76,21 +76,16 @@ export default function Sunburst({ root, colorBy, selectedId, onZoom, onSelect, 
   const [tip, setTip] = useState<TooltipState | null>(null)
   const [hover, setHover] = useState<ChartNode | null>(null)
 
-  const activate = (n: ChartNode) => {
-    if (n.id === null) return
-    if (n.is_dir && n.children.length > 0) onZoom(n.id)
-    else onSelect(n.id)
-  }
-
-  const shown = hover ?? root
-  return (
-    <div className="relative mx-auto aspect-square w-full max-w-[680px]">
-      <svg
-        viewBox={`0 0 ${SIZE} ${SIZE}`}
-        className="h-full w-full"
-        role="group"
-        aria-label={`Sunburst chart of ${root.name}`}
-      >
+  // The arcs only change with the data, colors or selection. Keeping them out of the tooltip's
+  // renders stops every pointer move from re-rendering hundreds of paths. Dimming is in CSS.
+  const shapes = useMemo(() => {
+    const activate = (n: ChartNode) => {
+      if (n.id === null) return
+      if (n.is_dir && n.children.length > 0) onZoom(n.id)
+      else onSelect(n.id)
+    }
+    return (
+      <g className="sunburst-arcs">
         {arcs.map((a, i) => {
           const selected = a.node.id !== null && a.node.id === selectedId
           return (
@@ -105,14 +100,10 @@ export default function Sunburst({ root, colorBy, selectedId, onZoom, onSelect, 
               }
               stroke={selected ? 'var(--fg)' : 'var(--panel)'}
               strokeWidth={selected ? 2.5 : 1.5}
-              opacity={hover && hover !== a.node ? 0.55 : 1}
               tabIndex={a.depth === 1 ? 0 : -1}
               role="button"
               aria-label={`${a.node.name}, ${formatBytes(a.node.value)}`}
-              style={{
-                cursor: a.node.id === null ? 'default' : 'pointer',
-                transition: 'opacity .1s',
-              }}
+              style={{ cursor: a.node.id === null ? 'default' : 'pointer' }}
               onMouseMove={(e) => {
                 const box = e.currentTarget.ownerSVGElement?.getBoundingClientRect()
                 if (!box) return
@@ -135,6 +126,20 @@ export default function Sunburst({ root, colorBy, selectedId, onZoom, onSelect, 
             />
           )
         })}
+      </g>
+    )
+  }, [arcs, hues, colorBy, selectedId, onZoom, onSelect])
+
+  const shown = hover ?? root
+  return (
+    <div className="relative mx-auto aspect-square w-full max-w-[680px]">
+      <svg
+        viewBox={`0 0 ${SIZE} ${SIZE}`}
+        className="h-full w-full"
+        role="group"
+        aria-label={`Sunburst chart of ${root.name}`}
+      >
+        {shapes}
         <g
           onClick={onUp}
           style={{ cursor: onUp ? 'pointer' : 'default' }}

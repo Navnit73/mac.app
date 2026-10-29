@@ -18,5 +18,11 @@ strip = true
 debug = "line-tables-only"
 incremental = true
 
+# Unoptimized hashing, walking and regex made `tauri dev` scans many times slower than release.
+# Dependencies and the core compile optimized; the thin shell stays fast to rebuild.
 [profile.dev.package."*"]
 debug = false
+opt-level = 3
+
+[profile.dev.package.duobolt-core]
+opt-level = 3

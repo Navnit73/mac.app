@@ -81,11 +81,60 @@ export default function Treemap({ root, colorBy, selectedId, onZoom, onSelect }:
   const [tip, setTip] = useState<TooltipState | null>(null)
   const hues = useMemo(() => branchHues(root), [root])
 
-  const activate = (n: ChartNode) => {
-    if (n.id === null) return
-    if (n.is_dir && n.children.length > 0) onZoom(n.id)
-    else onSelect(n.id)
-  }
+  // Tiles change with the data, size, colors or selection, never with the tooltip: keeping them
+  // memoized stops every pointer move from re-rendering hundreds of buttons.
+  const shapes = useMemo(() => {
+    const activate = (n: ChartNode) => {
+      if (n.id === null) return
+      if (n.is_dir && n.children.length > 0) onZoom(n.id)
+      else onSelect(n.id)
+    }
+    return tiles.map((t, i) => {
+      const color = nodeColor(t.node, colorBy, hues)
+      // Folder mode tints containers with their branch hue too; kind and age keep them gray.
+      const box = colorBy === 'folder' && t.node.id !== null ? color : 'var(--folder)'
+      const selected = t.node.id !== null && t.node.id === selectedId
+      const showLabel = t.rect.w > 54 && t.rect.h > 26
+      return (
+        <button
+          key={`${t.node.id ?? 'other'}-${i}`}
+          type="button"
+          aria-label={`${t.node.name}, ${formatBytes(t.node.value)}`}
+          onClick={() => activate(t.node)}
+          onMouseMove={(e) => {
+            const box = ref.current?.getBoundingClientRect()
+            if (box) setTip({ x: e.clientX - box.left, y: e.clientY - box.top, node: t.node })
+          }}
+          onMouseLeave={() => setTip(null)}
+          className="absolute flex flex-col items-start justify-start overflow-hidden rounded-md text-left transition-[filter] hover:brightness-110"
+          style={{
+            left: t.rect.x,
+            top: t.rect.y,
+            width: t.rect.w,
+            height: t.rect.h,
+            // Light tints keep black labels readable on every hue.
+            background: t.container
+              ? `color-mix(in srgb, ${box} 10%, var(--panel))`
+              : `color-mix(in srgb, ${color} 30%, var(--panel))`,
+            border: `1px solid ${selected ? 'var(--fg)' : t.container ? `color-mix(in srgb, ${box} 38%, var(--panel))` : `color-mix(in srgb, ${color} 62%, var(--panel))`}`,
+            outline: selected ? '1px solid var(--fg)' : undefined,
+            zIndex: t.depth,
+          }}
+        >
+          {showLabel && (
+            <span className="block truncate px-1.5 pt-0.5 text-xs font-semibold leading-tight">
+              {t.node.name}
+            </span>
+          )}
+          {showLabel && !t.container && t.rect.h > 44 && (
+            <span className="num block truncate px-1.5 text-xs text-muted">
+              {formatBytes(t.node.value)}
+            </span>
+          )}
+        </button>
+      )
+    })
+  }, [tiles, hues, colorBy, selectedId, onZoom, onSelect])
 
   return (
     <div
@@ -94,51 +143,7 @@ export default function Treemap({ root, colorBy, selectedId, onZoom, onSelect }:
       role="group"
       aria-label={`Treemap of ${root.name}`}
     >
-      {tiles.map((t, i) => {
-        const color = nodeColor(t.node, colorBy, hues)
-        // Folder mode tints containers with their branch hue too; kind and age keep them gray.
-        const box = colorBy === 'folder' && t.node.id !== null ? color : 'var(--folder)'
-        const selected = t.node.id !== null && t.node.id === selectedId
-        const showLabel = t.rect.w > 54 && t.rect.h > 26
-        return (
-          <button
-            key={`${t.node.id ?? 'other'}-${i}`}
-            type="button"
-            aria-label={`${t.node.name}, ${formatBytes(t.node.value)}`}
-            onClick={() => activate(t.node)}
-            onMouseMove={(e) => {
-              const box = ref.current?.getBoundingClientRect()
-              if (box) setTip({ x: e.clientX - box.left, y: e.clientY - box.top, node: t.node })
-            }}
-            onMouseLeave={() => setTip(null)}
-            className="absolute flex flex-col items-start justify-start overflow-hidden rounded-md text-left transition-[filter] hover:brightness-110"
-            style={{
-              left: t.rect.x,
-              top: t.rect.y,
-              width: t.rect.w,
-              height: t.rect.h,
-              // Light tints keep black labels readable on every hue.
-              background: t.container
-                ? `color-mix(in srgb, ${box} 10%, var(--panel))`
-                : `color-mix(in srgb, ${color} 30%, var(--panel))`,
-              border: `1px solid ${selected ? 'var(--fg)' : t.container ? `color-mix(in srgb, ${box} 38%, var(--panel))` : `color-mix(in srgb, ${color} 62%, var(--panel))`}`,
-              outline: selected ? '1px solid var(--fg)' : undefined,
-              zIndex: t.depth,
-            }}
-          >
-            {showLabel && (
-              <span className="block truncate px-1.5 pt-0.5 text-xs font-semibold leading-tight">
-                {t.node.name}
-              </span>
-            )}
-            {showLabel && !t.container && t.rect.h > 44 && (
-              <span className="num block truncate px-1.5 text-xs text-muted">
-                {formatBytes(t.node.value)}
-              </span>
-            )}
-          </button>
-        )
-      })}
+      {shapes}
       <ChartTooltip tip={tip} total={root.value} width={w} />
     </div>
   )

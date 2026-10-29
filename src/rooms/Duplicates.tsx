@@ -1,5 +1,5 @@
 import { convertFileSrc } from '@tauri-apps/api/core'
-import { useCallback, useEffect, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon'
 import Modal from '../components/Modal'
 import ScanButton from '../components/ScanButton'
@@ -266,7 +266,7 @@ function Progress() {
   )
 }
 
-function GroupCard({
+const GroupCard = memo(function GroupCard({
   g,
   scanId,
   open,
@@ -276,7 +276,7 @@ function GroupCard({
   g: DupGroup
   scanId: number
   open: boolean
-  onToggle: () => void
+  onToggle: (groupId: number) => void
   /** With a group: only it changed. Without: the selection changed everywhere. */
   onChanged: (updated?: DupGroup) => void
 }) {
@@ -317,7 +317,7 @@ function GroupCard({
     <li className="card overflow-hidden">
       <button
         type="button"
-        onClick={onToggle}
+        onClick={() => onToggle(g.id)}
         aria-expanded={open}
         className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-hover"
       >
@@ -417,7 +417,7 @@ function GroupCard({
       )}
     </li>
   )
-}
+})
 
 function Results({ scanId }: { scanId: number }) {
   const summary = useDupesStore((s) => s.summary)
@@ -441,6 +441,23 @@ function Results({ scanId }: { scanId: number }) {
   const [busy, setBusy] = useState(false)
 
   const [tick, setTick] = useState(0)
+  // Stable callbacks let unchanged cards skip rendering when one group changes.
+  const groupsRef = useRef(groups)
+  useEffect(() => {
+    groupsRef.current = groups
+  }, [groups])
+  const toggleGroup = useCallback((id: number) => {
+    setOpen((o) => {
+      const n = new Set(o.size === 0 ? groupsRef.current.slice(0, 3).map((x) => x.id) : o)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  }, [])
+  const groupChanged = useCallback((u?: DupGroup) => {
+    if (u) setGroups((gs) => gs.map((x) => (x.id === u.id ? u : x)))
+    else setTick((t) => t + 1)
+  }, [])
   const fetchGroups = useCallback(async () => {
     const all: DupGroup[] = []
     let more = false
@@ -625,17 +642,8 @@ function Results({ scanId }: { scanId: number }) {
             g={g}
             scanId={scanId}
             open={open.has(g.id) || (open.size === 0 && i < 3)}
-            onToggle={() =>
-              setOpen((o) => {
-                const n = new Set(o.size === 0 ? groups.slice(0, 3).map((x) => x.id) : o)
-                if (n.has(g.id)) n.delete(g.id)
-                else n.add(g.id)
-                return n
-              })
-            }
-            onChanged={(u) =>
-              u ? setGroups((gs) => gs.map((x) => (x.id === u.id ? u : x))) : setTick((t) => t + 1)
-            }
+            onToggle={toggleGroup}
+            onChanged={groupChanged}
           />
         ))}
       </ul>
