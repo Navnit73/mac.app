@@ -54,7 +54,7 @@ Work in small commits. Before large changes, state a plan. When a PRD requiremen
 ## Prompt 0 — Master context (paste first)
 
 ```text
-You are the lead engineer building DuoBolt, a macOS 14+ desktop app (Apple Silicon + Intel) that analyzes disk usage, finds duplicates, cleans junk safely, and monitors the system. I am the product owner.
+You are the lead engineer building DuoBolt, a macOS 14+ desktop app (Apple Silicon + Intel) that analyzes disk usage, finds duplicates, and cleans junk safely. I am the product owner.
 
 Read PRD.md fully before doing anything. It is the source of truth. Also read CLAUDE.md for the non-negotiable rules.
 
@@ -65,7 +65,7 @@ Stack (fixed):
 
 Product principles: nothing is permanently deleted (Trash only, with undo), review before action, everything local (no uploads, no analytics), honest size numbers (hard links, APFS clones, allocated vs logical size), always cancellable and fast.
 
-Rooms to build: Overview, Find, Space, Cleanup, Duplicates, Applications, Monitor, Compress, Activity, plus a cross-cutting Inspector, Settings, onboarding with Full Disk Access guidance, and offline licensing.
+Rooms to build: Overview, Find, Space, Cleanup, Duplicates, Applications, Activity, plus a cross-cutting Inspector, Settings, onboarding with Full Disk Access guidance, and offline licensing.
 
 We will build in milestones M0–M10 (listed in PRD.md section 10). I'll give you one milestone at a time. For each milestone:
 1. Restate the goal and list the files you will create or change.
@@ -89,7 +89,7 @@ Create a Cargo workspace + Tauri 2 + React/Vite app.
 Requirements:
 1. Repo layout exactly as in CLAUDE.md: `crates/core`, `src-tauri`, Vite React app in `src/`, `fixtures/`, `docs/`.
 2. Frontend: Vite + React 18 + TypeScript strict + Tailwind + `react-router` (hash router) + Zustand. Use `npm create tauri-app` with the React/TypeScript template as the starting point. Configure Tauri `frontendDist` to `../dist` and `devUrl` to `http://localhost:1420` (Vite dev server, fixed port, `strictPort: true`). Add scripts: `dev`, `build`, `lint`, `typecheck`, `tauri`.
-3. `crates/core`: empty modules (`scanner`, `index`, `find`, `space`, `cleanup`, `duplicates`, `apps`, `monitor`, `compress`, `activity`, `trash`, `license`, `errors`, `models`) each with a doc comment and a placeholder test. `AppError` via `thiserror`, serializable for IPC.
+3. `crates/core`: empty modules (`scanner`, `index`, `find`, `space`, `cleanup`, `duplicates`, `apps`, `activity`, `trash`, `license`, `errors`, `models`) each with a doc comment and a placeholder test. `AppError` via `thiserror`, serializable for IPC.
 4. `src-tauri`: depends on `core`. Register one `ping` command and one event emitter to prove the IPC round trip. Use `tauri-specta` (or `ts-rs`) to generate `src/types/bindings.ts` at build time.
 5. Tauri security: minimal capabilities (only what's needed), strict CSP, no remote content, no shell plugin yet.
 6. App shell UI: sidebar with the 9 rooms (routes exist, each a placeholder), top toolbar, status footer, light/dark mode via CSS variables, system font stack, neutral macOS-like styling (no gradients, no glassmorphism). Window: min 1000×680, hidden-inset titlebar with proper drag region, native feel.
@@ -231,40 +231,9 @@ Tests: rule confinement, no cross-app matches for 10 sample apps, uninstall + un
 
 ---
 
-## M7 — Monitor
+## M7, M8 — removed
 
-```text
-Milestone M7: Monitor room (PRD 6.7).
-
-Rust `core::monitor`: use `sysinfo` for CPU (total + per-core), memory (used/wired/compressed/cached/swap + pressure), processes (top 10 CPU and memory). Listening ports via `netstat2` or `libproc`. Battery via IOKit `AppleSmartBattery` (percent, charging, cycle count, health %, time remaining, power source); hide on desktops. Optional disk I/O throughput.
-
-Sampler: a single background task emitting `monitor://tick` at 1/2/5 s. Starts only when the Monitor room is visible or the menu bar item is enabled; stops otherwise. Tauri commands: `monitor_start`, `monitor_stop`, `quit_process(pid, start_time, signal)`.
-
-Safety: verify PID + process start time before signalling; refuse root/system/protected processes; SIGTERM first with confirmation; SIGKILL needs second confirmation.
-
-UI: CPU/memory sparklines (last 60 s in memory), memory pressure indicator, top-process tables, ports table with Quit action, battery card. Optional menu bar item (tray) showing free space/CPU with a small popover; toggle in Settings.
-
-Acceptance: Monitor adds < 2% CPU at 1 s sampling; sampling stops when leaving the room; process quit refuses protected processes (tested).
-```
-
----
-
-## M8 — Compress
-
-```text
-Milestone M8: Compress room (PRD 6.8). Plan the media pipeline first and tell me which option you recommend: (a) a Swift CLI helper sidecar using AVFoundation/VideoToolbox + ImageIO, or (b) a bundled ffmpeg sidecar. Default to (a) unless there's a blocker. Check licensing/size implications before suggesting (b).
-
-Implement:
-1. Candidate discovery from the scan index (videos > 200 MB, images > 5 MB) with estimated savings by codec/bitrate heuristics. Skip already-efficient HEVC, Live Photo pairs (warn), files inside Photos libraries, dataless files.
-2. Sidecar (declared in Tauri `externalBin`, allow-listed exact binary, args validated) to re-encode video to HEVC with presets High/Balanced/Small, preserving audio, subtitles, chapters, metadata and creation date; images re-compressed with preserved EXIF/orientation/color profile; optional GPS strip.
-3. Non-destructive flow: output to `name (compressed).ext` next to original; show before/after size and preview; user chooses Keep both / Replace original (original goes to Trash via `trash::move_items`) / Discard. Never overwrite in place.
-4. Queue: sequential by default, pause/cancel/resume, free-space pre-check, battery-aware pause, cleanup of partial outputs on cancel and next launch, auto-discard if output ≥ input.
-5. Record savings in Activity only after replacement is confirmed.
-
-UI: candidate list with estimates and preset picker, queue panel with per-item progress, before/after compare, final decision dialog.
-
-Acceptance: output duration within 0.1 s of source, audio tracks preserved, no original trashed before confirmation, cancel leaves no partial files.
-```
+Monitor (M7) and Compress (M8) were removed from scope on 2026-10-29. Skip from M6 straight to M9.
 
 ---
 

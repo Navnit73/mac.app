@@ -18,11 +18,6 @@ export default function Sidebar() {
             <NavLink to={room.path} className={link}>
               <Icon name={room.icon} />
               <span>{room.label}</span>
-              {room.milestone && (
-                <span className="ml-auto text-[10px] font-medium tracking-wide text-faint">
-                  {room.milestone}
-                </span>
-              )}
             </NavLink>
           </li>
         ))}

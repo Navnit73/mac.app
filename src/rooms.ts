@@ -5,8 +5,6 @@ export interface Room {
   label: string
   blurb: string
   icon: IconName
-  /** Milestone in which the room becomes functional; undefined once built. */
-  milestone?: string
 }
 
 export const ROOMS: readonly Room[] = [
@@ -40,20 +38,6 @@ export const ROOMS: readonly Room[] = [
     label: 'Applications',
     blurb: 'Every app with everything it left behind',
     icon: 'applications',
-  },
-  {
-    path: '/monitor',
-    label: 'Monitor',
-    blurb: 'CPU, memory, ports and battery, live',
-    icon: 'monitor',
-    milestone: 'M7',
-  },
-  {
-    path: '/compress',
-    label: 'Compress',
-    blurb: 'Shrink videos and photos instead of deleting them',
-    icon: 'compress',
-    milestone: 'M8',
   },
   {
     path: '/activity',

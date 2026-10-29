@@ -3,4 +3,4 @@
 /**
  * Where a removal started; recorded with every batch.
  */
-export type Room = "Space" | "Find" | "Inspector" | "Cleanup" | "Duplicates" | "Applications" | "Compress";
+export type Room = "Space" | "Find" | "Inspector" | "Cleanup" | "Duplicates" | "Applications";

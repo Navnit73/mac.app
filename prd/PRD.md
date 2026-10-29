@@ -27,7 +27,7 @@
 
 ### Goals (v1.0)
 - One full-disk scan that powers every screen (a single in-memory/indexed tree, scanned once).
-- Nine feature areas ("rooms"): Overview, Find, Space, Cleanup, Duplicates, Applications, Monitor, Compress, Activity.
+- Seven feature areas ("rooms"): Overview, Find, Space, Cleanup, Duplicates, Applications, Activity. (Monitor and Compress were removed from scope on 2026-10-29.)
 - Safe cleanup with Trash-based undo.
 - Signed, notarized `.dmg` sold from the product's own website.
 
@@ -44,7 +44,7 @@
 |---|---|---|
 | **Everyday Mac owner** | "Storage almost full", "System Data is huge" | Overview, Cleanup, one-click safe clear |
 | **Developer** | Xcode, node_modules, Docker, simulators, build caches | Cleanup (developer files), Space, Applications |
-| **Creator** (photo/video) | Huge video files, duplicate exports | Space, Duplicates, Compress |
+| **Creator** (photo/video) | Huge video files, duplicate exports | Space, Duplicates |
 | **Privacy-minded user** | Distrusts "cleaner" apps | Local-only guarantee, Trash-only, offline license |
 
 ## 4. Architecture overview
@@ -63,7 +63,7 @@
 ┌──────────────┴───────────────────────────▼─────────────────┐
 │ duobolt-core (Rust library, no Tauri dependency)            │
 │ scanner · index · find · space · cleanup · duplicates ·     │
-│ apps · monitor · compress · activity · trash · license      │
+│ apps · activity · trash · license                           │
 └──────────────▲───────────────────────────┬─────────────────┘
                │                           │
         macOS filesystem · IOKit · NSFileManager (Trash) · SQLite
@@ -319,55 +319,9 @@ Each feature uses the same template: **Purpose · User stories · Functional req
 
 ---
 
-### 6.7 Monitor — "CPU, memory, ports and battery, live"
+### 6.7 / 6.8 Monitor and Compress — removed
 
-**Purpose.** A lightweight live system monitor to complement storage tools.
-
-**Functional requirements**
-1. **CPU:** total and per-core usage, load average; top 10 processes by CPU.
-2. **Memory:** used, app, wired, compressed, cached, swap used; memory pressure indicator (green/yellow/red); top 10 processes by memory.
-3. **Ports:** list of listening TCP/UDP ports with process name, PID, protocol, address. Row action: **Quit process** (graceful SIGTERM with confirmation; never kill system processes; require a second confirmation for SIGKILL).
-4. **Battery** (laptops): percentage, charging state, cycle count, health (max capacity %), time remaining, power source; hidden on desktops.
-5. **Disk I/O** (optional): read/write throughput.
-6. **Menu bar item** (optional setting): shows free disk space and/or CPU; click opens a small popover.
-7. Sampling: 1 s default, 2 s/5 s options; **pause sampling when the Monitor room is not visible and no menu bar item is on** to avoid background load.
-8. History: sparkline for the last 60 s in memory only (not persisted).
-
-**Rust crates/APIs.** `sysinfo` for CPU/memory/processes; `netstat2` or `libproc` for ports; IOKit (`AppleSmartBattery`) for battery via `io-kit-sys` or the `battery` crate. Emit `monitor://tick` events with a compact struct.
-
-**Edge cases.** Processes owned by root (listed read-only; cannot be quit), sandbox/permission limits, rapid PID reuse (verify PID + start time before signalling).
-
-**Acceptance criteria**
-- Monitor's own CPU usage < 2% at 1 s sampling.
-- Quitting a process verifies PID + start time and refuses protected processes.
-
----
-
-### 6.8 Compress — "shrink videos and photos instead of deleting them"
-
-**Purpose.** Reduce size of large media with controlled, visible quality loss. Originals go to the Trash only after the user approves the result.
-
-**User stories**
-- As a user I pick large videos and photos and compress them to reclaim space.
-- As a user I preview the estimated savings and the result before replacing the original.
-
-**Functional requirements**
-1. **Candidates:** from Space, videos > 200 MB and images > 5 MB, with estimated savings per item (based on codec/bitrate heuristics).
-2. **Video:** re-encode to HEVC (H.265) via **AVFoundation hardware encoder** (preferred; call a small bundled Swift helper CLI as a Tauri sidecar) or a bundled `ffmpeg` sidecar with VideoToolbox. Presets: *High quality* (CRF-equivalent ~ visually lossless), *Balanced*, *Small*. Keep audio, subtitles, chapters, creation date, and metadata.
-3. **Photos:** JPEG/PNG/HEIC re-compression using ImageIO (via helper) or `image`/`mozjpeg` crates. Options: quality slider, max dimension. Preserve EXIF/orientation/color profile; strip GPS only if the user opts in.
-4. **Non-destructive flow:** write the output next to the original as `name (compressed).ext` → show before/after size, a preview/Quick Look → user chooses **Keep both / Replace original (move original to Trash) / Discard compressed**. Never overwrite in place.
-5. **Queue:** sequential by default (1 video at a time, user-configurable), progress per item, pause/cancel, resumable after quit; battery-aware (pause on low battery unless plugged in).
-6. Skip already-efficient files (HEVC at low bitrate), Live Photos pairs (warn), files inside Photos libraries, files in cloud-only state.
-7. Record savings in Activity after replacement is confirmed.
-
-**Rust API.** `list_compress_candidates(filters)`, `estimate(item, preset)`, `enqueue(items, preset)`, `queue_status()`, `finalize(item, decision)`; events `compress://progress`.
-
-**Edge cases.** Output larger than the input (auto-discard and tell the user), disk full during encode (check free space before start), corrupted source, HDR/Dolby Vision (preserve or warn), interrupted job (cleanup partial output on next launch).
-
-**Acceptance criteria**
-- Output duration matches the source within 0.1 s; audio tracks preserved.
-- No original is ever trashed before the user confirms.
-- Cancelling mid-encode leaves no partial files.
+Removed from scope by the product owner on 2026-10-29. DuoBolt focuses on storage: no live system monitor and no media compression. Section numbers 6.9 onward are kept so existing references stay valid.
 
 ---
 
@@ -454,12 +408,12 @@ A right-side panel shown for any selected file, folder or app.
 | M4 | Safe Trash + Activity | Trash module, manifests, Undo, Activity room |
 | M5 | Duplicates | Staged detection, keep rules, review |
 | M6 | Cleanup + Applications | Rule engine, leftovers, uninstall |
-| M7 | Monitor | Live CPU/memory/ports/battery |
-| M8 | Compress | Video/photo compression queue |
+| M7 | ~~Monitor~~ | Removed from scope (2026-10-29) |
+| M8 | ~~Compress~~ | Removed from scope (2026-10-29) |
 | M9 | Licensing + website | Keys, checkout, onboarding, landing site |
 | M10 | Hardening + release | Signing, notarization, QA matrix, `.dmg`, updater |
 
-Realistic effort: M0–M5 ≈ 6–8 weeks solo for a solid core; full scope M0–M10 ≈ 14–20 weeks. Ship a **v0.9 with Overview, Space, Find, Duplicates, Cleanup** first if time is tight; Monitor and Compress can follow in v1.1.
+Realistic effort: M0–M5 ≈ 6–8 weeks solo for a solid core; full scope M0–M10 ≈ 14–20 weeks. Ship a **v0.9 with Overview, Space, Find, Duplicates, Cleanup** first if time is tight.
 
 ## 11. Risks and mitigations
 
@@ -471,7 +425,6 @@ Realistic effort: M0–M5 ≈ 6–8 weeks solo for a solid core; full scope M0�
 | Scan too slow/heavy | Bounded parallelism, native bulk APIs, benchmark gates in CI |
 | macOS version differences | Test matrix on 14/15/latest; feature-detect, don't version-sniff |
 | Notarization/signing issues | Set up the pipeline in M0, not at the end |
-| Compress quality complaints | Non-destructive flow, previews, conservative default preset |
 | "Cleaner app" distrust | Open privacy statement, no network, plain-language explanations |
 
 ## 12. Success metrics (local, self-reported — no telemetry)
@@ -484,5 +437,4 @@ Realistic effort: M0–M5 ≈ 6–8 weeks solo for a solid core; full scope M0�
 
 1. Trial limit: time-based or bytes-based?
 2. Include Windows later from the same `core` crate? (Decide after v1.0.)
-3. Ship Compress in v1.0 or v1.1?
-4. Bundled `ffmpeg` (license/size) vs Swift AVFoundation helper only?
+3. ~~Ship Compress in v1.0 or v1.1?~~ Compress removed from scope.

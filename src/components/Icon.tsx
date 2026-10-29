@@ -8,8 +8,6 @@ const PATHS = {
     'M5 19 19 5M14 4l1.5 3L19 8.5 15.5 10 14 13l-1.5-3L9 8.5 12.5 7ZM6 14l.8 1.7L8.5 16.5 6.8 17.3 6 19l-.8-1.7L3.5 16.5l1.7-.8Z',
   duplicates: 'M9 9h10v10H9zM5 15V5h10',
   applications: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
-  monitor: 'M3 12h4l2.5-7 4 14 2.5-7h5',
-  compress: 'M4 14h6v6M20 10h-6V4M14 10l7-7M10 14l-7 7',
   activity: 'M12 7v5l3 2M21 12a9 9 0 1 1-3-6.7M21 4v5h-5',
   dev: 'm8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z',

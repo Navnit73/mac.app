@@ -555,7 +555,6 @@ pub enum Room {
     Cleanup,
     Duplicates,
     Applications,
-    Compress,
 }
 
 impl Room {
@@ -567,7 +566,6 @@ impl Room {
             Room::Cleanup => "Cleanup",
             Room::Duplicates => "Duplicates",
             Room::Applications => "Applications",
-            Room::Compress => "Compress",
         }
     }
 
@@ -578,7 +576,6 @@ impl Room {
             "Cleanup" => Room::Cleanup,
             "Duplicates" => Room::Duplicates,
             "Applications" => Room::Applications,
-            "Compress" => Room::Compress,
             _ => Room::Inspector,
         }
     }

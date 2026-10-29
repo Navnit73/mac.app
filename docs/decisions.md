@@ -82,3 +82,6 @@
 - Apple apps are locked unless they came from the App Store (Pages, Keynote, Numbers can be removed). DuoBolt never removes itself.
 - Architecture comes from the Mach-O header of the app's executable; signer from `codesign -dv` (fixed path, path as an argument); last-opened dates from one `mdls` call for all apps. App icons are converted once with `sips` into `~/Library/Application Support/DuoBolt/icons` and only those files are added to the asset protocol scope.
 - Undo after an uninstall restores the app and its files like any batch; the Applications room reads the apps again after any change.
+
+## Scope change (2026-10-29)
+- Monitor (M7) and Compress (M8) are removed from scope at the product owner's request. Their placeholder modules, sidebar entries, icons and the unused `Compress` activity room were deleted, and the PRD and build prompts mark them as removed. With every remaining room built, the "arrives in M…" placeholder screen and sidebar milestone badges were removed too.

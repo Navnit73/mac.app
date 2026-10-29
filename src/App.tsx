@@ -5,7 +5,6 @@ import FdaBanner from './components/FdaBanner'
 import Inspector from './components/Inspector'
 import ResultBanner from './components/ResultBanner'
 import ReviewSheet from './components/ReviewSheet'
-import RoomPlaceholder from './components/RoomPlaceholder'
 import Sidebar from './components/Sidebar'
 import StatusFooter from './components/StatusFooter'
 import Toolbar from './components/Toolbar'
@@ -25,7 +24,7 @@ import { initScanListeners } from './state/scanStore'
 import { useSpaceStore } from './state/spaceStore'
 import { useTrashStore } from './state/trashStore'
 
-const BUILT: Record<string, React.ReactElement> = {
+const ROOM_VIEWS: Record<string, React.ReactElement> = {
   '/overview': <Overview />,
   '/space': <Space />,
   '/find': <Find />,
@@ -86,7 +85,7 @@ export default function App() {
                   <Route
                     key={room.path}
                     path={room.path}
-                    element={BUILT[room.path] ?? <RoomPlaceholder room={room} />}
+                    element={ROOM_VIEWS[room.path] ?? <Navigate to="/overview" replace />}
                   />
                 ))}
                 <Route path="/dev" element={<Dev />} />
