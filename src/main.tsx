@@ -8,40 +8,30 @@ const container = document.getElementById('root')
 if (!container) throw new Error('root element missing')
 const mountPoint: HTMLElement = container
 
-function render(sample = false) {
+function render() {
   createRoot(mountPoint).render(
     <StrictMode>
       <HashRouter>
         <App />
       </HashRouter>
-      {sample && (
-        // Never let made-up numbers pass for the real disk.
-        <div
-          role="note"
-          className="pointer-events-none fixed top-3 left-1/2 z-50 -translate-x-1/2 rounded-full bg-warn px-3 py-1 text-xs font-semibold text-black shadow-lg"
-        >
-          Sample data — browser preview. Run npm run tauri dev to see your Mac.
-        </div>
-      )}
     </StrictMode>,
   )
 }
 
-async function boot() {
-  // Browser-only preview (no Tauri): install a mocked bridge with sample data.
-  if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) {
-    const mock = await import('./lib/mockBridge')
-    mock.installMockBridge()
-    const [{ useScanStore }, { useSpaceStore }] = await Promise.all([
-      import('./state/scanStore'),
-      import('./state/spaceStore'),
-    ])
-    render(true)
-    // Let the app register its event listeners before the mock scan starts.
-    setTimeout(() => void mock.applyMockState({ scan: useScanStore, space: useSpaceStore }), 250)
-    return
-  }
-  render()
+/** Opened in a plain browser: there is no Rust side, so say so instead of failing quietly. */
+function renderNoRuntime() {
+  createRoot(mountPoint).render(
+    <StrictMode>
+      <main className="flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
+        <h1 className="text-xl font-semibold">DuoBolt runs as a Mac app</h1>
+        <p className="max-w-md text-muted">
+          This page needs the DuoBolt window to read your disk. Start it with{' '}
+          <code className="font-mono">npm run tauri dev</code>.
+        </p>
+      </main>
+    </StrictMode>,
+  )
 }
 
-void boot()
+if ('__TAURI_INTERNALS__' in window) render()
+else renderNoRuntime()

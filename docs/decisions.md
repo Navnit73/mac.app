@@ -27,7 +27,7 @@
 - Full Disk Access is detected by trying to list protected folders. The banner, footer pill and scan report all explain the cause of "Protected by macOS" skips and link to System Settings. When running in development, the permission belongs to the app that launches DuoBolt (Terminal or the editor).
 - Exclusions added from the Inspector are stored in `~/Library/Application Support/DuoBolt/settings.json` and merged into every scan. A settings screen to manage them arrives in M9.
 - `core::trash::protected_reason` exists now (shared with the Inspector's lock indicator); M4 builds the move/undo machinery around it.
-- A dev-only mock of the Tauri bridge (`src/lib/mockBridge.ts`) lets the UI run in a browser with sample data for screenshots. It is loaded only when `import.meta.env.DEV` and no Tauri runtime is present, and is absent from production bundles.
+- The UI has no sample-data mode. Opened outside the DuoBolt window (in a plain browser), it shows a note asking to start the app instead of showing made-up numbers.
 - `target/` can reach several GB; dev builds use line-table debug info only, and fixtures default to `$TMPDIR/duobolt-fixtures` so `cargo clean` is never blocked by the locked-directory fixture.
 
 ## M3 (Find)
