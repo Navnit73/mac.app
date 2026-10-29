@@ -163,7 +163,11 @@ pub async fn get_duplicate_groups(
 ) -> Result<DupGroupsPage, AppError> {
     let page = dups.with_session(scan_id, |s| Ok(s.page(page, kind)))?;
     let scope = app.asset_protocol_scope();
-    for g in page.groups.iter().filter(|g| g.file_kind == FileKind::Images) {
+    for g in page
+        .groups
+        .iter()
+        .filter(|g| g.file_kind == FileKind::Images)
+    {
         if let Some(f) = g.files.first() {
             if let Err(e) = scope.allow_file(&f.path) {
                 tracing::warn!("thumbnail scope: {e}");

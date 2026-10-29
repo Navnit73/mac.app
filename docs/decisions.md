@@ -51,3 +51,17 @@
 - If the Trash cannot be read (no Full Disk Access), reconciliation leaves items as "In Trash" rather than guessing they were emptied.
 - The CSV export is written to Downloads by Rust, never overwriting an existing file, then revealed in Finder.
 - Destructive dialogs open with focus on Cancel.
+
+## M5 (Duplicates)
+- Duplicates are found among the files of the last scan (sizes, inodes and mtimes come from the index), not by walking the disk again. One name per inode is checked, so hard links never count as copies.
+- Stages: same size → BLAKE3 of the first and last 64 KB plus the size → full streamed BLAKE3 with a 1 MB buffer. Size and modification time are read before and after hashing; a file that changed is dropped and listed as left out.
+- Never searched: `/System`, `/Library`, `/private`, package insides (apps and bundles), `node_modules`, `.git`. Hidden folders and `~/Library` are skipped unless "Include app data" is on; Photos and Music libraries only with their own opt-in. Dataless (iCloud) files are skipped because reading them would download them.
+- Hashing uses at most 6 threads, or 2 when any candidate is on another volume (external drives are often slow or rotational).
+- The selection lives in Rust. The UI asks Rust to change one checkbox or apply a rule, and Rust refuses a change that would select the last unselected copy of a group. Removal (`remove_duplicates`) moves Rust's selection, not ids sent by the UI.
+- After each scan Rust applies "Keep the oldest" (usually the original). "Preferred folder" is offered per copy ("Prefer this folder"): in every group, the copy inside that folder is kept; groups with no copy there are left as they are.
+- Reclaimable bytes use APFS's private size, so a copy that is already a clone of another counts as freeing almost nothing. The totals update after every change.
+- Before anything moves, each selected copy is compared byte for byte with the kept copy (streaming, stops at the first difference). If the kept copy changed or is gone, nothing in that group moves.
+- Replacing with APFS clones is behind its own confirmation and is off by default. The selected copy is cloned from the kept one to a temporary name, the original copy goes to the Trash (so Undo works), and the clone takes its path.
+- Groups are paged (50 at a time, "Show more") rather than virtualized; each page is a short list of cards with a few rows each. Ticking a box updates the card in place instead of re-sorting, so the card does not jump away from the pointer.
+- Image thumbnails use Tauri's asset protocol with an empty scope. When a page of groups is sent to the UI, Rust allows only the first file of each image group (its copies are identical), so the UI can read nothing else.
+- Undo after a clone replacement finds the clone already at each path, so (as with any Undo) nothing is overwritten: the originals stay in the Trash as "name taken". The clones hold identical bytes, so no data is lost; "Restore with a new name" brings the originals back beside them.

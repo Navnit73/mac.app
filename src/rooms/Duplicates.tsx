@@ -1,3 +1,4 @@
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { useCallback, useEffect, useState } from 'react'
 import Icon from '../components/Icon'
 import Modal from '../components/Modal'
@@ -8,7 +9,7 @@ import { formatAge, formatBytes, formatCount, formatDuration } from '../lib/form
 import { commands, describeError } from '../lib/ipc'
 import { middleTruncate, tildify } from '../lib/text'
 import { useDupesStore } from '../state/dupesStore'
-import { useScanStore } from '../state/scanStore'
+import { rootNodeId, useScanStore } from '../state/scanStore'
 import { useSpaceStore } from '../state/spaceStore'
 import { useTrashStore } from '../state/trashStore'
 import type { DupGroup } from '../types/bindings/DupGroup'
@@ -29,6 +30,34 @@ const RULES: { value: KeepRule; label: string; hint: string }[] = [
   { value: 'ShortestPath', label: 'Keep the shortest path', hint: 'The copy closest to the top' },
   { value: 'Manual', label: 'Pick by hand', hint: 'Clears the selection' },
 ]
+/** The same group with one copy's checkbox changed, and its reclaimable bytes recomputed. */
+function withSelected(g: DupGroup, pick: (nodeId: number, was: boolean) => boolean): DupGroup {
+  const files = g.files.map((f) => ({ ...f, selected: pick(f.node_id, f.selected) }))
+  return {
+    ...g,
+    files,
+    reclaimable: files.filter((f) => f.selected).reduce((a, f) => a + f.private_size, 0),
+  }
+}
+
+/** Image groups show the picture (Rust allows only that one file for the asset protocol). */
+function Thumb({ g }: { g: DupGroup }) {
+  const [failed, setFailed] = useState(false)
+  const first = g.files[0]
+  if (g.file_kind !== 'Images' || !first || failed) {
+    return <EntryIcon kind={g.file_kind} isDir={false} isPackage={false} />
+  }
+  return (
+    <img
+      src={convertFileSrc(first.path)}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="h-9 w-9 shrink-0 rounded-md bg-track object-cover"
+    />
+  )
+}
+
 const STAGES: { stage: DupStage; label: string; hint: string }[] = [
   { stage: 'Grouping', label: 'Grouping by size', hint: 'Only files of the same size can match' },
   { stage: 'QuickCheck', label: 'Quick check', hint: 'Compares the start and end of each file' },
@@ -43,6 +72,9 @@ function Options() {
   const currentId = useSpaceStore((s) => s.currentId)
   const [scopeName, setScopeName] = useState<string | null>(null)
   const scanId = useScanStore((s) => s.scanId)
+  const roots = useScanStore((s) => s.roots)
+  // At the scan root, "only in this folder" would be the same as everything.
+  const canScope = currentId !== null && currentId !== rootNodeId(roots)
 
   useEffect(() => {
     if (scanId === null || currentId === null) return
@@ -82,15 +114,16 @@ function Options() {
           >
             Everything scanned
           </button>
-          <button
-            type="button"
-            aria-pressed={options.scope !== null}
-            disabled={currentId === null}
-            onClick={() => setOptions({ scope: currentId })}
-            title="The folder open in Space"
-          >
-            Only in {scopeName ?? 'the Space folder'}
-          </button>
+          {canScope && (
+            <button
+              type="button"
+              aria-pressed={options.scope !== null}
+              onClick={() => setOptions({ scope: currentId })}
+              title="The folder open in Space"
+            >
+              Only in {scopeName ?? 'the Space folder'}
+            </button>
+          )}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -243,33 +276,41 @@ function GroupCard({
   scanId: number
   open: boolean
   onToggle: () => void
-  onChanged: () => void
+  /** With a group: only it changed. Without: the selection changed everywhere. */
+  onChanged: (updated?: DupGroup) => void
 }) {
   const setSavings = useDupesStore((s) => s.setSavings)
   const [note, setNote] = useState<string | null>(null)
   const unselected = g.files.filter((f) => !f.selected).length
 
-  const run = async (fn: () => Promise<{ bytes: number; files: number; groups: number }>) => {
+  const run = async (
+    fn: () => Promise<{ bytes: number; files: number; groups: number }>,
+    updated?: DupGroup,
+  ) => {
     try {
       setSavings(await fn())
       setNote(null)
-      onChanged()
+      // Groups are ordered by reclaimable bytes; updating in place keeps a card from jumping.
+      onChanged(updated)
     } catch (e) {
       setNote(describeError(e).replace(/^\w+: /, ''))
     }
   }
 
   const keepThis = (nodeId: number) =>
-    run(async () => {
-      // Unselect the one to keep first, so the group is never fully selected along the way.
-      let s = await commands.setDuplicateSelected(scanId, g.id, nodeId, false)
-      for (const f of g.files) {
-        if (f.node_id !== nodeId && !f.selected) {
-          s = await commands.setDuplicateSelected(scanId, g.id, f.node_id, true)
+    run(
+      async () => {
+        // Unselect the one to keep first, so the group is never fully selected along the way.
+        let s = await commands.setDuplicateSelected(scanId, g.id, nodeId, false)
+        for (const f of g.files) {
+          if (f.node_id !== nodeId && !f.selected) {
+            s = await commands.setDuplicateSelected(scanId, g.id, f.node_id, true)
+          }
         }
-      }
-      return s
-    })
+        return s
+      },
+      withSelected(g, (id) => id !== nodeId),
+    )
 
   return (
     <li className="card overflow-hidden">
@@ -279,7 +320,7 @@ function GroupCard({
         aria-expanded={open}
         className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-hover"
       >
-        <EntryIcon kind={g.file_kind} isDir={false} isPackage={false} />
+        <Thumb g={g} />
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium" title={g.name}>
             {g.name}
@@ -318,11 +359,13 @@ function GroupCard({
                       ? 'This is the last copy; one copy is always kept.'
                       : 'Select to move to the Trash'
                   }
-                  onChange={(e) =>
-                    void run(() =>
-                      commands.setDuplicateSelected(scanId, g.id, f.node_id, e.target.checked),
+                  onChange={(e) => {
+                    const on = e.target.checked
+                    void run(
+                      () => commands.setDuplicateSelected(scanId, g.id, f.node_id, on),
+                      withSelected(g, (id, was) => (id === f.node_id ? on : was)),
                     )
-                  }
+                  }}
                 />
                 <div className="min-w-0 flex-1">
                   <p className="truncate" title={f.path}>
@@ -382,7 +425,7 @@ function Results({ scanId }: { scanId: number }) {
   const version = useDupesStore((s) => s.version)
   const setSavings = useDupesStore((s) => s.setSavings)
   const refresh = useDupesStore((s) => s.refresh)
-  const resetPhase = () => useDupesStore.setState({ phase: 'idle' })
+  const resetPhase = useDupesStore((s) => s.editOptions)
   const openReview = useTrashStore((s) => s.openReview)
   const banner = useTrashStore((s) => s.banner)
   const [kind, setKind] = useState<FileKind | null>(null)
@@ -435,6 +478,7 @@ function Results({ scanId }: { scanId: number }) {
   const applyRule = async () => {
     try {
       setSavings(await commands.applyKeepRule(scanId, rule, null, null))
+      setTick((t) => t + 1)
     } catch (e) {
       setError(describeError(e))
     }
@@ -566,8 +610,10 @@ function Results({ scanId }: { scanId: number }) {
       )}
       {summary.skipped.length > 0 && (
         <p className="text-xs text-muted">
-          {formatCount(summary.skipped.length)} files were left out because they changed while being
-          read or could not be read.
+          {formatCount(summary.skipped.length)}{' '}
+          {summary.skipped.length === 1 ? 'file was' : 'files were'} left out because{' '}
+          {summary.skipped.length === 1 ? 'it' : 'they'} changed while being read or could not be
+          read.
         </p>
       )}
 
@@ -586,7 +632,9 @@ function Results({ scanId }: { scanId: number }) {
                 return n
               })
             }
-            onChanged={() => setTick((t) => t + 1)}
+            onChanged={(u) =>
+              u ? setGroups((gs) => gs.map((x) => (x.id === u.id ? u : x))) : setTick((t) => t + 1)
+            }
           />
         ))}
       </ul>

@@ -242,6 +242,71 @@ const home = nodes[homeNode]
 const totalAlloc = home?.total ?? 0
 let scanState: 'idle' | 'running' | 'done' = 'idle'
 
+// Duplicates: a few groups with stable ids, selection kept here as Rust would.
+interface MDupFile {
+  node_id: number
+  name: string
+  path: string
+  mtime: number
+  private_size: number
+  selected: boolean
+}
+interface MDupGroup {
+  id: number
+  size: number
+  file_kind: string
+  name: string
+  files: MDupFile[]
+}
+const dupGroups: MDupGroup[] = (
+  [
+    ['Holiday 2023.mov', 'Video', 9.4 * GB, ['Movies', 'Desktop/Export', 'Downloads']],
+    ['Lightroom Backup.zip', 'Archives', 4.2 * GB, ['Documents/Backups', 'Downloads']],
+    ['Xcode_16.dmg', 'DiskImages', 3.1 * GB, ['Downloads', 'Downloads/Old installers']],
+    ['IMG_4821.HEIC', 'Images', 6.8 * MB, ['Pictures/Imports', 'Desktop', 'Downloads/AirDrop']],
+    ['Thesis final.pdf', 'Documents', 48 * MB, ['Documents/School', 'Desktop']],
+    ['Podcast ep 12.wav', 'Audio', 610 * MB, ['Music/Recordings', 'Downloads']],
+    ['DSC_0192.jpg', 'Images', 12.4 * MB, ['Pictures/Camera', 'Pictures/Camera copy']],
+  ] as const
+).map(([name, kind, size, dirs], gi) => ({
+  id: gi,
+  size,
+  file_kind: kind,
+  name,
+  files: dirs.map((d, fi) => ({
+    node_id: 900_000 + gi * 10 + fi,
+    name,
+    path: `/Users/demo/${d}/${name}`,
+    mtime: NOW - (400 - gi * 30 - fi * 90) * 86400,
+    // The second copy of the zip is an APFS clone: it frees almost nothing.
+    private_size: gi === 1 && fi === 1 ? 64_000 : size,
+    selected: fi > 0,
+  })),
+}))
+const dupFile = (id: number) =>
+  dupGroups.flatMap((g) => g.files.map((f) => ({ g, f }))).find((x) => x.f.node_id === id)
+let dupState: 'idle' | 'running' | 'done' = 'idle'
+const reclaim = (g: MDupGroup) =>
+  g.files.filter((f) => f.selected).reduce((a, f) => a + f.private_size, 0)
+const potentialOf = (g: MDupGroup) =>
+  g.files.reduce((a, f) => a + f.private_size, 0) - Math.max(...g.files.map((f) => f.private_size))
+const dupSavings = () => {
+  const sel = dupGroups.filter((g) => g.files.some((f) => f.selected))
+  return {
+    bytes: sel.reduce((a, g) => a + reclaim(g), 0),
+    files: sel.reduce((a, g) => a + g.files.filter((f) => f.selected).length, 0),
+    groups: sel.length,
+  }
+}
+const dupSummary = () => ({
+  groups: dupGroups.length,
+  files: dupGroups.reduce((a, g) => a + g.files.length, 0),
+  potential_bytes: dupGroups.reduce((a, g) => a + potentialOf(g), 0),
+  skipped: [{ path: '/Users/demo/Downloads/growing.log', reason: 'It changed while being read.' }],
+  elapsed_ms: 8400,
+  cancelled: false,
+})
+
 const handlers: Record<string, Handler> = {
   'plugin:path|resolve_directory': () => '/Users/demo',
   'plugin:event|listen': (a) => {
@@ -552,6 +617,20 @@ const handlers: Record<string, Handler> = {
   preview_trash: (a) => {
     const ids = a.nodeIds as number[]
     const items = ids.map((id) => {
+      const d = dupFile(id)
+      if (d) {
+        const { name, path, private_size } = d.f
+        return {
+          node_id: id,
+          name,
+          path,
+          size: private_size,
+          file_kind: d.g.file_kind,
+          is_dir: false,
+          risk: 'Safe',
+          blocked: null,
+        }
+      }
       const n = nodes[id]
       const p = pathOf(id)
       return {
@@ -682,6 +761,81 @@ const handlers: Record<string, Handler> = {
   add_exclusion: () => [],
   get_exclusions: () => [],
   remove_exclusion: () => [],
+  start_duplicate_scan: () => {
+    dupState = 'running'
+    const total = 18_400
+    const bytes = 212 * GB
+    let step = 0
+    const t = setInterval(() => {
+      step++
+      const stage = step < 4 ? 'Grouping' : step < 10 ? 'QuickCheck' : 'Comparing'
+      const f = Math.min(1, (step % 10) / 10 + 0.05)
+      emit('dupes://progress', {
+        stage,
+        files_done: Math.round(total * f),
+        files_total: total,
+        bytes_done: Math.round(bytes * f),
+        bytes_total: bytes,
+        eta_ms: Math.round((1 - f) * 40_000),
+      })
+    }, 200)
+    setTimeout(
+      () => {
+        clearInterval(t)
+        dupState = 'done'
+        emit('dupes://done', { summary: dupSummary(), error: null })
+      },
+      params.get('dupes') === 'running' ? 1e9 : 2600,
+    )
+    return null
+  },
+  cancel_duplicate_scan: () => null,
+  get_duplicate_status: () => ({
+    running: dupState === 'running',
+    summary: dupState === 'done' ? dupSummary() : null,
+    savings: dupSavings(),
+    potential_bytes: dupGroups.reduce((a, g) => a + potentialOf(g), 0),
+  }),
+  get_duplicate_groups: (a) => {
+    const groups = dupGroups
+      .filter((g) => !a.kind || g.file_kind === a.kind)
+      .sort((x, y) => reclaim(y) - reclaim(x) || potentialOf(y) - potentialOf(x))
+      .map((g) => ({ ...g, reclaimable: reclaim(g), files: g.files.map((f) => ({ ...f })) }))
+    return { groups, total: groups.length, next_page: null }
+  },
+  apply_keep_rule: (a) => {
+    for (const g of dupGroups) {
+      if (a.rule === 'Manual') {
+        g.files.forEach((f) => (f.selected = false))
+        continue
+      }
+      const sorted = [...g.files].sort((x, y) =>
+        a.rule === 'Newest'
+          ? y.mtime - x.mtime
+          : a.rule === 'ShortestPath'
+            ? x.path.length - y.path.length
+            : x.mtime - y.mtime,
+      )
+      const keep = sorted[0]
+      g.files.forEach((f) => (f.selected = f !== keep))
+    }
+    return dupSavings()
+  },
+  set_duplicate_selected: (a) => {
+    const d = dupFile(a.nodeId as number)
+    if (!d) throw { kind: 'NotFound', message: 'file is not in this group' }
+    const left = d.g.files.filter((f) => !f.selected).length
+    if (a.selected && !d.f.selected && left <= 1)
+      throw { kind: 'InvalidInput', message: 'At least one copy must be kept.' }
+    d.f.selected = a.selected as boolean
+    return dupSavings()
+  },
+  duplicate_selection: () =>
+    dupGroups.flatMap((g) => g.files.filter((f) => f.selected).map((f) => f.node_id)),
+  remove_duplicates: () => {
+    const s = dupSavings()
+    return { batch_id: 8, moved_count: s.files, moved_bytes: s.bytes, skipped: [] }
+  },
   ping: () => ({ message: 'pong, ui (mock)', core_version: 'mock' }),
   emit_ticks: () => null,
 }
@@ -736,6 +890,11 @@ export async function applyMockState(stores: {
       ...(findText !== null ? { text: findText } : {}),
       ...(findMode ? { mode: findMode as never } : {}),
     })
+  }
+  const dupes = params.get('dupes')
+  if (dupes) {
+    const { useDupesStore } = await import('../state/dupesStore')
+    setTimeout(() => void useDupesStore.getState().start(), 1200)
   }
   const review = params.get('review')
   const empty = params.get('empty')
