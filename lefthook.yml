@@ -1,0 +1,15 @@
+pre-commit:
+  parallel: true
+  commands:
+    fmt-rust:
+      glob: '*.rs'
+      run: cargo fmt --all -- --check
+    clippy:
+      glob: '*.rs'
+      run: cargo clippy --workspace --all-targets -- -D warnings
+    lint:
+      glob: '*.{ts,tsx}'
+      run: npm run lint
+    typecheck:
+      glob: '*.{ts,tsx}'
+      run: npm run typecheck

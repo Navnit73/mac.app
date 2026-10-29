@@ -1,0 +1,11 @@
+dist
+target
+node_modules
+src/types/bindings
+src-tauri/gen
+src-tauri/icons
+package-lock.json
+prd
+prompt
+CLAUDE.md
+docs

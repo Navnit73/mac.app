@@ -1,0 +1,7 @@
+#!/bin/sh
+# Generate the deterministic fixture tree. Usage: scripts/gen-fixtures [dir] [--big]  (default: $TMPDIR/duobolt-fixtures)
+set -e
+cd "$(dirname "$0")/.."
+DIR="${1:-${TMPDIR:-/tmp}/duobolt-fixtures}"
+[ $# -gt 0 ] && shift
+cargo run -q -p duobolt-fixtures -- "$DIR" "$@"

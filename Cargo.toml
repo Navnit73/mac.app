@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "src-tauri", "fixtures"]
+
+[workspace.package]
+edition = "2021"
+version = "0.1.0"
+license = "UNLICENSED"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Keep dev builds small: full debug info made target/ several GB.
+[profile.dev]
+debug = "line-tables-only"
+incremental = true
+
+[profile.dev.package."*"]
+debug = false

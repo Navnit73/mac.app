@@ -1,0 +1,9 @@
+[package]
+name = "duobolt-fixtures"
+description = "Deterministic fixture tree generator for tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
