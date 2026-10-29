@@ -5,6 +5,14 @@ import type { ChartMode } from '../types/bindings/ChartMode'
 import type { ChartNode } from '../types/bindings/ChartNode'
 import type { ChildrenPage } from '../types/bindings/ChildrenPage'
 import type { Crumb } from '../types/bindings/Crumb'
+import type { DupDoneEvent } from '../types/bindings/DupDoneEvent'
+import type { DupGroupsPage } from '../types/bindings/DupGroupsPage'
+import type { DupOptions } from '../types/bindings/DupOptions'
+import type { DupProgress } from '../types/bindings/DupProgress'
+import type { DupSavings } from '../types/bindings/DupSavings'
+import type { DupStatus } from '../types/bindings/DupStatus'
+import type { FileKind } from '../types/bindings/FileKind'
+import type { KeepRule } from '../types/bindings/KeepRule'
 import type { FdaStatus } from '../types/bindings/FdaStatus'
 import type { NodeDetails } from '../types/bindings/NodeDetails'
 import type { OverviewSummary } from '../types/bindings/OverviewSummary'
@@ -84,6 +92,25 @@ export const commands = {
   addExclusion: (id: number, nodeId: number) => invoke<string[]>('add_exclusion', { id, nodeId }),
   getExclusions: () => invoke<string[]>('get_exclusions'),
   removeExclusion: (path: string) => invoke<string[]>('remove_exclusion', { path }),
+
+  startDuplicateScan: (scanId: number, options: DupOptions) =>
+    invoke<void>('start_duplicate_scan', { scanId, options }),
+  cancelDuplicateScan: () => invoke<void>('cancel_duplicate_scan'),
+  getDuplicateStatus: (scanId: number) => invoke<DupStatus>('get_duplicate_status', { scanId }),
+  getDuplicateGroups: (scanId: number, page: number, kind: FileKind | null) =>
+    invoke<DupGroupsPage>('get_duplicate_groups', { scanId, page, kind }),
+  /** `folderNode` may be a file: its folder is preferred. `groupIds` null means every group. */
+  applyKeepRule: (
+    scanId: number,
+    rule: KeepRule,
+    folderNode: number | null,
+    groupIds: number[] | null,
+  ) => invoke<DupSavings>('apply_keep_rule', { scanId, rule, folderNode, groupIds }),
+  setDuplicateSelected: (scanId: number, groupId: number, nodeId: number, selected: boolean) =>
+    invoke<DupSavings>('set_duplicate_selected', { scanId, groupId, nodeId, selected }),
+  duplicateSelection: (scanId: number) => invoke<number[]>('duplicate_selection', { scanId }),
+  removeDuplicates: (scanId: number, clones: boolean) =>
+    invoke<TrashBatchResult>('remove_duplicates', { scanId, clones }),
 }
 
 export const events = {
@@ -93,6 +120,10 @@ export const events = {
     listen<ScanProgressEvent>('scan://progress', (ev) => handler(ev.payload)),
   onScanDone: (handler: (e: ScanDoneEvent) => void): Promise<UnlistenFn> =>
     listen<ScanDoneEvent>('scan://done', (ev) => handler(ev.payload)),
+  onDupesProgress: (handler: (e: DupProgress) => void): Promise<UnlistenFn> =>
+    listen<DupProgress>('dupes://progress', (ev) => handler(ev.payload)),
+  onDupesDone: (handler: (e: DupDoneEvent) => void): Promise<UnlistenFn> =>
+    listen<DupDoneEvent>('dupes://done', (ev) => handler(ev.payload)),
 }
 
 export function describeError(e: unknown): string {

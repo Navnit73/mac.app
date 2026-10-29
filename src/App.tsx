@@ -11,10 +11,12 @@ import StatusFooter from './components/StatusFooter'
 import Toolbar from './components/Toolbar'
 import Activity from './rooms/Activity'
 import Dev from './rooms/Dev'
+import Duplicates from './rooms/Duplicates'
 import Find from './rooms/Find'
 import Overview from './rooms/Overview'
 import Space from './rooms/Space'
 import { ROOMS } from './rooms'
+import { initDupesListeners } from './state/dupesStore'
 import { useFindStore } from './state/findStore'
 import { initScanListeners } from './state/scanStore'
 import { useSpaceStore } from './state/spaceStore'
@@ -25,11 +27,13 @@ const BUILT: Record<string, React.ReactElement> = {
   '/space': <Space />,
   '/find': <Find />,
   '/activity': <Activity />,
+  '/duplicates': <Duplicates />,
 }
 
 export default function App() {
   const navigate = useNavigate()
   useEffect(() => initScanListeners(), [])
+  useEffect(() => initDupesListeners(), [])
 
   // ⌘F: Find. ⌘⌫: review the selection for the Trash. ⌘Z: undo the last batch.
   useEffect(() => {

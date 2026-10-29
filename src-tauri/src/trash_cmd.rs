@@ -29,13 +29,13 @@ pub struct TrashState {
     token: Mutex<Option<(String, Instant)>>,
 }
 
-fn home() -> PathBuf {
+pub(crate) fn home() -> PathBuf {
     std::env::var_os("HOME")
         .map(PathBuf::from)
         .unwrap_or_default()
 }
 
-fn now() -> i64 {
+pub(crate) fn now() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64)
@@ -51,7 +51,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 
 impl TrashState {
     /// Run `f` with the activity database, opening it on first use.
-    fn with_store<T>(
+    pub(crate) fn with_store<T>(
         &self,
         f: impl FnOnce(&mut Store) -> Result<T, AppError>,
     ) -> Result<T, AppError> {
@@ -131,7 +131,7 @@ fn risk_for(path: &Path) -> Risk {
 }
 
 /// Refresh the scan below the folders that changed, so totals and search stay true.
-fn refresh(out: &mut ScanOutput, paths: &[PathBuf]) {
+pub(crate) fn refresh(out: &mut ScanOutput, paths: &[PathBuf]) {
     let mut ids: Vec<NodeId> = Vec::new();
     for p in paths {
         // Walk up until a folder the scan knows about (a restore may recreate folders).

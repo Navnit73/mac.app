@@ -14,6 +14,7 @@ use duobolt_core::models::{
 use duobolt_core::{inspect, overview, platform, space, AppError};
 use tauri::State;
 
+use crate::dupes_cmd::DupState;
 use crate::scan::ScanManager;
 use crate::settings;
 
@@ -42,22 +43,22 @@ pub async fn open_fda_settings() -> Result<(), AppError> {
 #[tauri::command]
 pub async fn get_overview(
     state: State<'_, ScanManager>,
+    dups: State<'_, DupState>,
     id: ScanId,
 ) -> Result<OverviewSummary, AppError> {
+    let dup_totals = dups.overview_totals(id);
     state.with_output(id, |out, roots| {
         let probe = roots
             .first()
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/"));
         let volume = platform::volume_info(&probe)?;
-        Ok(overview::summarize(
-            &out.tree,
-            &out.summary,
-            roots,
-            volume,
-            &home(),
-            now(),
-        ))
+        let mut summary =
+            overview::summarize(&out.tree, &out.summary, roots, volume, &home(), now());
+        if let Some((bytes, copies)) = dup_totals {
+            overview::set_duplicates(&mut summary, bytes, copies);
+        }
+        Ok(summary)
     })
 }
 

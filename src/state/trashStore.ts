@@ -11,6 +11,10 @@ import { useSpaceStore } from './spaceStore'
 interface Review {
   nodeIds: number[]
   room: Room
+  /** Replaces the plain move, e.g. Duplicates verifies every copy first. */
+  action?: () => Promise<TrashBatchResult>
+  /** Extra line shown in the sheet, explaining what happens. */
+  note?: string
   preview: TrashPreview | null
   error: string | null
   moving: boolean
@@ -24,7 +28,11 @@ interface TrashStore {
   banner: Banner | null
   empty: { prep: EmptyTrashPrep | null; error: string | null; busy: boolean } | null
   /** Every destructive action starts here: load the dry run and show the Review sheet. */
-  openReview: (nodeIds: number[], room: Room) => Promise<void>
+  openReview: (
+    nodeIds: number[],
+    room: Room,
+    extra?: { action?: () => Promise<TrashBatchResult>; note?: string },
+  ) => Promise<void>
   closeReview: () => void
   confirmReview: () => Promise<void>
   undoBatch: (batchId: number) => Promise<void>
@@ -42,10 +50,10 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
   banner: null,
   empty: null,
 
-  openReview: async (nodeIds, room) => {
+  openReview: async (nodeIds, room, extra) => {
     const id = scanId()
     if (id === null || nodeIds.length === 0) return
-    set({ review: { nodeIds, room, preview: null, error: null, moving: false } })
+    set({ review: { nodeIds, room, preview: null, error: null, moving: false, ...extra } })
     try {
       const preview = await commands.previewTrash(id, nodeIds)
       set((s) => (s.review ? { review: { ...s.review, preview } } : s))
@@ -63,7 +71,7 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
     const allowed = r.preview.items.filter((i) => i.blocked === null).map((i) => i.node_id)
     set({ review: { ...r, moving: true, error: null } })
     try {
-      const result = await commands.trashItems(id, allowed, r.room)
+      const result = r.action ? await r.action() : await commands.trashItems(id, allowed, r.room)
       set({ review: null, banner: { kind: 'moved', result } })
       useSpaceStore.getState().select(null)
       useFindStore.getState().set({ selected: [] })

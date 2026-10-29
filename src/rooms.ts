@@ -35,7 +35,6 @@ export const ROOMS: readonly Room[] = [
     label: 'Duplicates',
     blurb: 'Files that exist twice, matched byte for byte',
     icon: 'duplicates',
-    milestone: 'M5',
   },
   {
     path: '/applications',

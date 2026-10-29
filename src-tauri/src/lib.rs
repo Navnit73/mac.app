@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+mod dupes_cmd;
 mod scan;
 mod settings;
 mod trash_cmd;
@@ -45,6 +46,7 @@ pub fn run() {
     let result = tauri::Builder::default()
         .manage(scan::ScanManager::default())
         .manage(trash_cmd::TrashState::default())
+        .manage(dupes_cmd::DupState::default())
         .setup(|app| {
             use tauri::Manager;
             let handle = app.handle().clone();
@@ -87,7 +89,15 @@ pub fn run() {
             trash_cmd::get_batch,
             trash_cmd::get_weekly_stats,
             trash_cmd::export_activity_csv,
-            trash_cmd::clear_activity
+            trash_cmd::clear_activity,
+            dupes_cmd::start_duplicate_scan,
+            dupes_cmd::cancel_duplicate_scan,
+            dupes_cmd::get_duplicate_status,
+            dupes_cmd::get_duplicate_groups,
+            dupes_cmd::apply_keep_rule,
+            dupes_cmd::set_duplicate_selected,
+            dupes_cmd::duplicate_selection,
+            dupes_cmd::remove_duplicates
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

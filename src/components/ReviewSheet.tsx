@@ -33,6 +33,12 @@ export default function ReviewSheet() {
           <p className="mt-0.5 text-muted">
             Items go to the Trash, not away for good. You can undo this until the Trash is emptied.
           </p>
+          {review?.note && (
+            <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-accent-soft px-3 py-2">
+              <Icon name="shield" size={13} className="mt-0.5 shrink-0 text-accent" />
+              {review.note}
+            </p>
+          )}
         </div>
         <button
           type="button"
