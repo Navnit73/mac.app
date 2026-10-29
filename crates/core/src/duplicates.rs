@@ -123,8 +123,9 @@ pub fn candidates(tree: &Tree, opts: &DupOptions) -> Vec<Cand> {
                     {
                         continue;
                     }
-                    // Hard links share their bytes: they are one file, not duplicates.
-                    if n.has(flags::MULTILINK) && !seen_inodes.insert((n.dev, n.inode)) {
+                    // One file reached by two names (hard links, overlapping roots, firmlinks)
+                    // is not a duplicate of itself: removing "the copy" would remove it.
+                    if !seen_inodes.insert((n.dev, n.inode)) {
                         continue;
                     }
                     out.push(Cand {
@@ -210,6 +211,14 @@ pub fn same_bytes(a: &Path, b: &Path) -> std::io::Result<bool> {
         if na == 0 {
             return Ok(true);
         }
+    }
+}
+
+/// True if both paths lead to one file on disk now, or if that cannot be ruled out.
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::metadata(a), std::fs::metadata(b)) {
+        (Ok(ma), Ok(mb)) => ma.st_dev() == mb.st_dev() && ma.st_ino() == mb.st_ino(),
+        _ => true,
     }
 }
 
@@ -757,6 +766,14 @@ impl Session {
                 continue;
             }
             for f in selected {
+                if same_file(&kept.cand.path, &f.cand.path) {
+                    v.skipped.push((
+                        f.cand.path.clone(),
+                        f.private_size,
+                        "It is the same file as the copy you keep, not a second copy.".into(),
+                    ));
+                    continue;
+                }
                 match same_bytes(&kept.cand.path, &f.cand.path) {
                     Ok(true) => v.ok.push((f.cand.clone(), f.private_size)),
                     Ok(false) => v.skipped.push((
@@ -883,7 +900,8 @@ fn clone_one(
         ));
     }
     let trashed = backend.trash(&dup.path).map_err(cleanup)?;
-    if let Err(e) = std::fs::rename(&tmp, &dup.path) {
+    // Never replace something that appeared at the path after the original moved.
+    if let Err(e) = trash::rename_no_replace(&tmp, &dup.path) {
         let _ = std::fs::remove_file(&tmp);
         return Err(format!(
             "The original is in the Trash but the clone could not take its place ({e}). Undo restores it."
@@ -1162,6 +1180,52 @@ mod tests {
         );
         s.forget(&moved.into_iter().collect());
         assert_eq!(s.groups[0].files.len(), 2);
+    }
+
+    #[test]
+    fn one_file_seen_twice_is_never_its_own_duplicate() {
+        let e = env();
+        let sub = e.root.join("sub");
+        write(&sub.join("only.bin"), &bytes(3, 90_000));
+        // Overlapping roots list the same file under two node ids.
+        let cancel = AtomicBool::new(false);
+        let out = scan(
+            &StdReader,
+            &[e.root.clone(), sub.clone()],
+            &Default::default(),
+            &cancel,
+            &mut |_| {},
+        )
+        .unwrap();
+        let cands = candidates(&out.tree, &opts());
+        assert_eq!(cands.len(), 1, "one inode, one candidate");
+
+        // Even a session that pairs two names of one file never moves either.
+        std::fs::hard_link(sub.join("only.bin"), e.root.join("link.bin")).unwrap();
+        let mk = |node: NodeId, p: PathBuf| {
+            let m = std::fs::symlink_metadata(&p).unwrap();
+            Cand {
+                node,
+                size: m.len(),
+                mtime: m.st_mtime(),
+                dev: m.st_dev() as u32,
+                inode: m.st_ino(),
+                path: p,
+            }
+        };
+        let found = FindResult {
+            groups: vec![Found {
+                size: 90_000,
+                hash: [0; 32],
+                files: vec![mk(1, e.root.join("link.bin")), mk(2, sub.join("only.bin"))],
+            }],
+            ..FindResult::default()
+        };
+        let mut s = Session::new(found, 0, &|_| None);
+        s.apply_rule(KeepRule::ShortestPath, None, None);
+        let v = s.verify(&e.ctx);
+        assert!(v.ok.is_empty());
+        assert!(v.skipped[0].2.contains("same file"));
     }
 
     #[test]

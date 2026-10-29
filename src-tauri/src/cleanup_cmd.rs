@@ -54,7 +54,14 @@ impl CleanupState {
         let home = home();
         let rules = Rules::bundled(&home)?;
         let running = platform::running_apps();
-        let installed = apps::installed_ids(&apps::discover(&apps::app_dirs(&home)), &running);
+        // Apps outside the usual folders count as installed too, so their data is never offered
+        // as a leftover.
+        let mut installed = apps::installed_ids(&apps::discover(&apps::app_dirs(&home)), &running);
+        installed.extend(
+            platform::spotlight_app_ids()
+                .into_iter()
+                .map(|id| id.to_lowercase()),
+        );
         let analysis: Analysis = scans.with_output(scan_id, |out, _| {
             Ok(analyze(
                 &out.tree,
@@ -213,14 +220,20 @@ pub async fn build_cleanup_plan(app: AppHandle, scan_id: ScanId) -> Result<Clean
     .await
 }
 
-/// Move the selection to the Trash. With `quit_apps`, open apps that own selected items are
+/// Move the selection to the Trash. Only items the user reviewed (`node_ids`, from
+/// `build_cleanup_plan`) can move. With `quit_apps`, open apps that own selected items are
 /// asked to quit first (never forced); items of apps still open are left alone.
 #[tauri::command]
 pub async fn execute_cleanup_plan(
     app: AppHandle,
     scan_id: ScanId,
+    node_ids: Vec<NodeId>,
     quit_apps: bool,
 ) -> Result<TrashBatchResult, AppError> {
+    if node_ids.len() > MAX_BATCH {
+        return Err(AppError::InvalidInput("too many items".into()));
+    }
+    let reviewed: HashSet<NodeId> = node_ids.into_iter().collect();
     blocking(app, move |app| {
         let state = app.state::<CleanupState>();
         let scans = app.state::<ScanManager>();
@@ -229,6 +242,7 @@ pub async fn execute_cleanup_plan(
         })?;
         let ctx = Context::new(roots);
         let outcome = state.with(&scans, scan_id, |rules, s| {
+            s.limit_to_reviewed(&reviewed);
             if quit_apps {
                 let ids: Vec<String> = s
                     .selected_items()

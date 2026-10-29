@@ -54,7 +54,7 @@ const CONFIDENCE: Record<Confidence, { label: string; hint: string; cls: string 
   },
   Shared: {
     label: 'Shared',
-    hint: 'Used by several apps from the same developer. Removing it affects them all.',
+    hint: 'Used by several apps from the same developer, so DuoBolt keeps it.',
     cls: 'badge-careful',
   },
 }
@@ -214,7 +214,7 @@ function Details() {
                       type="checkbox"
                       aria-label={`Remove ${r.path}`}
                       checked={chosen.has(r.node_id)}
-                      disabled={!a.removable}
+                      disabled={!a.removable || r.confidence === 'Shared'}
                       onChange={() => toggleChosen(r.node_id)}
                     />
                     <div className="min-w-0 flex-1">

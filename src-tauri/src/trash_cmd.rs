@@ -89,6 +89,10 @@ fn candidates(tree: &Tree, ids: &[NodeId]) -> Result<Vec<(Candidate, u64, NodeId
             continue;
         }
         let Some(n) = tree.node(id) else { continue };
+        // Gone from disk at the last refresh; a stale id from the UI must not resolve again.
+        if n.has(duobolt_core::index::flags::DELETED) {
+            continue;
+        }
         let mut parent = n.parent;
         let mut nested = false;
         while let Some(p) = tree.node(parent) {

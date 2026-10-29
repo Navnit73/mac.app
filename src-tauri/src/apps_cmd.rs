@@ -2,7 +2,7 @@
 //! gives sizes and the identity of every file, so uninstalls go through the same checks as any
 //! other move (`trash::preflight` against those roots).
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
@@ -15,7 +15,7 @@ use duobolt_core::models::{
 };
 use duobolt_core::scanner::bulk::BulkReader;
 use duobolt_core::scanner::{scan, ScanOutput};
-use duobolt_core::trash::{self, Context, MacTrash};
+use duobolt_core::trash::{Context, MacTrash};
 use duobolt_core::{platform, AppError};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -32,6 +32,9 @@ struct AppsIndex {
     roots: Vec<PathBuf>,
     related: HashMap<usize, Vec<Related>>,
     last_used: Vec<Option<i64>>,
+    /// Apps removed since the scan. They keep their place so every other app keeps its id: the
+    /// UI addresses apps by id, and a shifted id would point at a different app.
+    gone: HashSet<usize>,
 }
 
 impl AppsIndex {
@@ -55,6 +58,7 @@ impl AppsIndex {
             roots,
             related,
             last_used,
+            gone: HashSet::new(),
         })
     }
 
@@ -63,25 +67,21 @@ impl AppsIndex {
     }
 
     fn app(&self, id: u32) -> Result<&App, AppError> {
+        let i = id as usize;
         self.apps
-            .get(id as usize)
+            .get(i)
+            .filter(|_| !self.gone.contains(&i))
             .ok_or_else(|| AppError::NotFound("That app is no longer listed. Scan again.".into()))
     }
 
-    /// After a move: refresh sizes and forget apps whose bundle is gone.
+    /// After a move: refresh sizes and mark apps whose bundle is gone.
     fn after_move(&mut self, moved: &[PathBuf]) {
         refresh(&mut self.out, moved);
-        let keep: Vec<bool> = self.apps.iter().map(|a| a.path.exists()).collect();
-        let mut i = 0;
-        self.apps.retain(|_| {
-            i += 1;
-            keep[i - 1]
-        });
-        let mut j = 0;
-        self.last_used.retain(|_| {
-            j += 1;
-            keep[j - 1]
-        });
+        for (i, a) in self.apps.iter().enumerate() {
+            if std::fs::symlink_metadata(&a.path).is_err() {
+                self.gone.insert(i);
+            }
+        }
         self.related = apps::related_all(&self.out.tree, &home(), &self.apps);
     }
 }
@@ -159,6 +159,7 @@ pub async fn list_apps(app: AppHandle, scan_id: Option<ScanId>) -> Result<AppsLi
                 .apps
                 .iter()
                 .enumerate()
+                .filter(|(i, _)| !ix.gone.contains(i))
                 .map(|(i, a)| {
                     let open = running
                         .iter()
@@ -269,11 +270,13 @@ pub async fn app_icon(app: AppHandle, app_id: u32) -> Result<Option<String>, App
 }
 
 /// Move the app and the chosen related files to the Trash. An open app is asked to quit when
-/// `quit` is set (never forced); otherwise the user is told to quit it first.
+/// `quit` is set (never forced); otherwise the user is told to quit it first. `bundle_id` is the
+/// app the user looked at; if `app_id` now names another app, nothing happens.
 #[tauri::command]
 pub async fn uninstall_app(
     app: AppHandle,
     app_id: u32,
+    bundle_id: String,
     related: Vec<NodeId>,
     quit: bool,
     scan_id: Option<ScanId>,
@@ -282,6 +285,11 @@ pub async fn uninstall_app(
         let state = app.state::<AppsState>();
         let (outcome, moved) = state.with(|ix| {
             let a = ix.app(app_id)?.clone();
+            if a.bundle_id != bundle_id {
+                return Err(AppError::InvalidInput(
+                    "The app list changed. Scan the apps again, then try once more.".into(),
+                ));
+            }
             if let Some(why) = apps::locked_reason(&a) {
                 return Err(AppError::InvalidInput(why));
             }
@@ -302,7 +310,7 @@ pub async fn uninstall_app(
             let plan = apps::plan_uninstall(&ix.out.tree, &a, ix.related(app_id as usize), &related)
                 .map_err(AppError::InvalidInput)?;
             let ctx = Context::new(ix.roots.clone());
-            let outcome = trash::move_items(&plan, &ctx, &MacTrash);
+            let outcome = apps::uninstall(&plan, &ctx, &MacTrash);
             let moved: Vec<PathBuf> = outcome.moved.iter().map(|m| m.original.clone()).collect();
             ix.after_move(&moved);
             Ok((outcome, moved))

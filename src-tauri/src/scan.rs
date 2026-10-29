@@ -117,7 +117,7 @@ fn validate_roots(roots: &[String]) -> Result<Vec<PathBuf>, AppError> {
             "expected 1 to {MAX_ROOTS} roots"
         )));
     }
-    roots
+    let canon = roots
         .iter()
         .map(|r| {
             let p = PathBuf::from(r);
@@ -130,7 +130,22 @@ fn validate_roots(roots: &[String]) -> Result<Vec<PathBuf>, AppError> {
             }
             Ok(canon)
         })
-        .collect()
+        .collect::<Result<Vec<_>, AppError>>()?;
+    Ok(outermost(canon))
+}
+
+/// Drop roots that repeat or sit inside another root. Overlapping roots would list one file
+/// under two names, and the duplicate finder would then offer it as a copy of itself.
+fn outermost(mut roots: Vec<PathBuf>) -> Vec<PathBuf> {
+    roots.sort();
+    roots.dedup();
+    let mut kept: Vec<PathBuf> = Vec::new();
+    for r in roots {
+        if !kept.iter().any(|k| r.starts_with(k)) {
+            kept.push(r);
+        }
+    }
+    kept
 }
 
 #[tauri::command]
@@ -357,4 +372,24 @@ pub async fn search(
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn nested_and_repeated_roots_are_merged() {
+        let p = |s: &str| PathBuf::from(s);
+        assert_eq!(
+            outermost(vec![
+                p("/Users/me/Documents"),
+                p("/Users/me"),
+                p("/Users/me"),
+                p("/Users/meg"),
+                p("/Volumes/X"),
+            ]),
+            vec![p("/Users/me"), p("/Users/meg"), p("/Volumes/X")]
+        );
+    }
 }

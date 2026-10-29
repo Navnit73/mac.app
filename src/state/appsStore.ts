@@ -102,14 +102,21 @@ export const useAppsStore = create<AppsStore>((set, get) => ({
   },
 
   uninstall: async (quit) => {
-    const { selectedId, chosen } = get()
-    if (selectedId === null) return false
+    const { selectedId, details, chosen } = get()
+    // The bundle id lets Rust refuse if the id now names a different app.
+    if (selectedId === null || details === null || details.app.id !== selectedId) return false
     set({ uninstalling: true, error: null })
     try {
-      const result = await commands.uninstallApp(selectedId, [...chosen], quit, scanId())
+      const result = await commands.uninstallApp(
+        selectedId,
+        details.app.bundle_id,
+        [...chosen],
+        quit,
+        scanId(),
+      )
       useTrashStore.setState({ banner: { kind: 'moved', result } })
       set({ selectedId: null, details: null })
-      // Other rooms refresh; this one reads the apps again (ids change after a removal).
+      // Other rooms refresh; this one reads the apps again.
       useScanStore.getState().bumpData()
       return true
     } catch (e) {

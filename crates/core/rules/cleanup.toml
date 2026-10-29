@@ -151,9 +151,15 @@ risk = "review"
 id = "old-installers"
 category = "OldDownloads"
 name = "Old installers"
-description = "Disk images and installer packages older than 30 days. Usually not needed after installing."
-paths = ["~/**/*.dmg", "~/**/*.pkg"]
-exclude = ["~/Library/**", "~/.*/**"]
+description = "Disk images and installer packages in Downloads or on the Desktop, older than 30 days. Usually not needed after installing."
+# Only where installers land. A disk image kept elsewhere (Documents, a project) may be an
+# encrypted vault or a backup, so it is never offered as an installer.
+paths = [
+  "~/Downloads/**/*.dmg",
+  "~/Downloads/**/*.pkg",
+  "~/Desktop/**/*.dmg",
+  "~/Desktop/**/*.pkg",
+]
 kind = "file"
 min_age_days = 30
 risk = "review"

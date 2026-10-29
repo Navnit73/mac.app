@@ -336,11 +336,11 @@ pub struct RunningApp {
     pub pid: i32,
 }
 
-/// Where an item came from: a rule in the file, or the leftovers detector.
+/// Where an item came from: a rule in the file, or the leftovers detector (with its risk).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Source {
     Rule(usize),
-    Leftover,
+    Leftover(Risk),
 }
 
 #[derive(Debug, Clone)]
@@ -613,19 +613,24 @@ pub fn analyze(
             match_pattern(tree, idx, rule, pat, now, running, &mut claims, &mut items);
         }
     }
-    for (id, path, root, app) in crate::apps::leftover_nodes(tree, home, installed, &claims) {
+    for l in crate::apps::leftover_nodes(tree, home, installed, &claims) {
+        let risk = if l.holds_user_data() {
+            Risk::Careful
+        } else {
+            Risk::Review
+        };
         if let Some(item) = make_item(
             tree,
-            id,
-            path,
-            &root,
-            Source::Leftover,
+            l.node,
+            l.path,
+            &l.root,
+            Source::Leftover(risk),
             CategoryId::Leftovers,
-            Some(app),
+            Some(l.bundle_id),
             false,
             running,
         ) {
-            claims.claim(tree, id);
+            claims.claim(tree, l.node);
             items.push(item);
         }
     }
@@ -671,7 +676,7 @@ impl Analysis {
 fn rule_of(rules: &Rules, s: Source) -> Option<&Rule> {
     match s {
         Source::Rule(i) => rules.rules.get(i),
-        Source::Leftover => None,
+        Source::Leftover(_) => None,
     }
 }
 
@@ -680,7 +685,10 @@ fn is_report_only(rules: &Rules, s: Source) -> bool {
 }
 
 fn risk_of(rules: &Rules, s: Source) -> Risk {
-    rule_of(rules, s).map_or(Risk::Review, |r| r.risk)
+    match s {
+        Source::Rule(_) => rule_of(rules, s).map_or(Risk::Review, |r| r.risk),
+        Source::Leftover(risk) => risk,
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -896,6 +904,12 @@ impl Session {
         }
     }
 
+    /// Unselect everything the user did not see in the Review sheet. The analysis can be rebuilt
+    /// between review and execution (the scan changed), adding items nobody looked at.
+    pub fn limit_to_reviewed(&mut self, reviewed: &HashSet<NodeId>) {
+        self.selected.retain(|id| reviewed.contains(id));
+    }
+
     /// Move the selection to the Trash. Each item is confined to its root, its app must not be
     /// running, and `trash::preflight` checks it once more. Returns the outcome and moved nodes.
     pub fn execute(
@@ -1039,6 +1053,10 @@ mod tests {
         let nm2 = dir(&mut t, fresh, "node_modules");
         file(&mut t, nm2, "react.js", 700, NOW);
         file(&mut t, code, "Installer.pkg", 300, 0);
+        let desk = dir(&mut t, h, "Desktop");
+        file(&mut t, desk, "Setup.pkg", 300, 0);
+        let docs = dir(&mut t, h, "Documents");
+        file(&mut t, docs, "Vault.dmg", 300, 0);
         t.aggregate();
         t
     }
@@ -1096,7 +1114,8 @@ mod tests {
         );
         assert_eq!(names("user-logs"), ["/Users/me/Library/Logs/app.log"]);
         assert_eq!(names("old-downloads"), ["/Users/me/Downloads/old.dmg"]);
-        assert_eq!(names("old-installers"), ["/Users/me/code/Installer.pkg"]);
+        // Only Downloads and Desktop: a disk image elsewhere may be a vault, never an installer.
+        assert_eq!(names("old-installers"), ["/Users/me/Desktop/Setup.pkg"]);
         assert_eq!(names("cargo-target"), ["/Users/me/code/tool/target"]);
         assert_eq!(names("node-modules"), ["/Users/me/code/site/node_modules"]);
 
@@ -1286,6 +1305,53 @@ mod tests {
         let mut s3 = s2;
         s3.select_category(&r, None, SelectMode::Defaults);
         assert!(s3.selected_items().iter().any(|i| i.node == brew));
+    }
+
+    #[test]
+    fn only_reviewed_items_stay_selected() {
+        let t = tree();
+        let r = rules();
+        let mut s = Session::new(run(&t, &[]), &r, None);
+        let before: Vec<NodeId> = s.selected_items().iter().map(|i| i.node).collect();
+        assert!(before.len() >= 2);
+        let reviewed: HashSet<NodeId> = before.iter().skip(1).copied().collect();
+        s.limit_to_reviewed(&reviewed);
+        let after: HashSet<NodeId> = s.selected_items().iter().map(|i| i.node).collect();
+        assert_eq!(after, reviewed);
+    }
+
+    #[test]
+    fn leftover_containers_are_careful_and_never_batch_selected() {
+        let mut t = Tree::new();
+        let h = add(&mut t, ROOT, "/Users/me", NodeKind::Dir, 0, NOW);
+        let lib = dir(&mut t, h, "Library");
+        let cont = dir(&mut t, lib, "Containers");
+        let journal = dir(&mut t, cont, "com.gone.journal");
+        file(&mut t, journal, "entries.db", 5000, 0);
+        let prefs = dir(&mut t, lib, "Preferences");
+        file(&mut t, prefs, "com.gone.journal.plist", 10, 0);
+        t.aggregate();
+        let r = rules();
+        let mut s = Session::new(run(&t, &[]), &r, None);
+        let risk = |s: &Session, name: &str| {
+            let it = s
+                .analysis
+                .items
+                .iter()
+                .find(|i| i.path.ends_with(name))
+                .unwrap();
+            risk_of(&r, it.source)
+        };
+        assert_eq!(risk(&s, "com.gone.journal"), Risk::Careful);
+        assert_eq!(risk(&s, "com.gone.journal.plist"), Risk::Review);
+        s.select_category(&r, Some(CategoryId::Leftovers), SelectMode::All);
+        let picked: Vec<_> = s.selected_items().iter().map(|i| i.path.clone()).collect();
+        assert_eq!(
+            picked,
+            [PathBuf::from(
+                "/Users/me/Library/Preferences/com.gone.journal.plist"
+            )]
+        );
     }
 
     #[test]

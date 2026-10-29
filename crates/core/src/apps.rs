@@ -520,15 +520,58 @@ pub fn related_all(tree: &Tree, home: &Path, apps: &[App]) -> HashMap<usize, Vec
     out
 }
 
+/// One Library entry that looks left behind by a removed app.
+#[derive(Debug, Clone)]
+pub struct Leftover {
+    pub node: NodeId,
+    pub path: PathBuf,
+    /// The Library folder it sits in; it must stay inside.
+    pub root: PathBuf,
+    pub bundle_id: String,
+    pub kind: RelatedKind,
+}
+
+impl Leftover {
+    /// A sandboxed app's container is where it keeps all of its user's data (notes, journals,
+    /// libraries), so it is only ever removed one at a time, with confirmation.
+    pub fn holds_user_data(&self) -> bool {
+        matches!(
+            self.kind,
+            RelatedKind::Containers | RelatedKind::GroupContainers
+        )
+    }
+}
+
+/// True if a launch agent plist still points at a program that exists, or cannot be read (then
+/// nothing is known, so it is kept). Agents a user wrote for their own scripts look like an
+/// app's, but their program is still there.
+fn launch_agent_alive(plist_path: &Path) -> bool {
+    let Some(d) = plist_dict(plist_path) else {
+        return true;
+    };
+    let program = string(&d, "Program").or_else(|| {
+        d.get("ProgramArguments")?
+            .as_array()?
+            .first()?
+            .as_string()
+            .map(str::to_string)
+    });
+    match program {
+        // A bare command name is found through PATH; it cannot be ruled out.
+        Some(p) if p.starts_with('/') => std::fs::symlink_metadata(&p).is_ok(),
+        _ => true,
+    }
+}
+
 /// Library entries named after an app that is not installed. Apple's own entries, anything a
-/// cleanup rule already claimed, and anything sharing a developer prefix with an installed app
-/// are left out. Returns (node, path, root folder, bundle id).
+/// cleanup rule already claimed, anything sharing a developer prefix with an installed app, and
+/// launch agents whose program still exists are left out.
 pub fn leftover_nodes(
     tree: &Tree,
     home: &Path,
     installed: &HashSet<String>,
     claims: &Claims,
-) -> Vec<(NodeId, PathBuf, PathBuf, String)> {
+) -> Vec<Leftover> {
     let vendors: HashSet<String> = installed.iter().map(|i| vendor(i)).collect();
     let mut out = Vec::new();
     for (rel, kind) in HOME_LOCATIONS {
@@ -559,7 +602,17 @@ pub fn leftover_nodes(
             {
                 continue;
             }
-            out.push((c, loc.join(&name), loc.clone(), id));
+            let path = loc.join(&name);
+            if *kind == RelatedKind::LaunchAgents && launch_agent_alive(&path) {
+                continue;
+            }
+            out.push(Leftover {
+                node: c,
+                path,
+                root: loc.clone(),
+                bundle_id: id,
+                kind: *kind,
+            });
         }
     }
     out
@@ -660,11 +713,45 @@ pub fn plan_uninstall(
             .iter()
             .find(|r| r.node == *id)
             .ok_or("A selected file does not belong to this app.")?;
+        if r.confidence == Confidence::Shared {
+            return Err(format!(
+                "{} is shared with other apps from the same developer, so it is kept.",
+                r.path.display()
+            ));
+        }
         if let Some(c) = candidate(tree, r.node, r.path.clone()) {
             items.push(c);
         }
     }
     Ok(items)
+}
+
+/// Carry out a plan from [`plan_uninstall`]: the app first, then its files. When the app itself
+/// cannot move (it was updated since the scan, or is protected), its files stay too: removing
+/// the data of an app that is still installed would lose it for nothing.
+pub fn uninstall(
+    plan: &[(Candidate, u64)],
+    ctx: &trash::Context,
+    backend: &dyn trash::TrashBackend,
+) -> trash::MoveOutcome {
+    let Some((app, files)) = plan.split_first() else {
+        return trash::MoveOutcome::default();
+    };
+    let mut out = trash::move_items(std::slice::from_ref(app), ctx, backend);
+    if out.moved.is_empty() {
+        out.skipped.extend(files.iter().map(|(c, size)| {
+            (
+                c.path.clone(),
+                *size,
+                "Kept because the app itself was not removed.".to_string(),
+            )
+        }));
+        return out;
+    }
+    let rest = trash::move_items(files, ctx, backend);
+    out.moved.extend(rest.moved);
+    out.skipped.extend(rest.skipped);
+    out
 }
 
 #[cfg(test)]
@@ -881,12 +968,52 @@ mod tests {
             ("Library/LaunchAgents", &["homebrew.mxcl.postgresql.plist"]),
         ]);
         let found = leftover_nodes(&t, Path::new("/Users/me"), &installed, &Claims::default());
-        let mut ids: Vec<&str> = found.iter().map(|f| f.3.as_str()).collect();
+        let mut ids: Vec<&str> = found.iter().map(|f| f.bundle_id.as_str()).collect();
         ids.sort();
         assert_eq!(ids, ["com.gone.editor", "com.gone.editor"]);
-        for (_, path, root, _) in &found {
-            assert!(crate::cleanup::within_root(path, root));
+        for f in &found {
+            assert!(crate::cleanup::within_root(&f.path, &f.root));
+            assert!(!f.holds_user_data());
         }
+    }
+
+    #[test]
+    fn containers_of_removed_apps_hold_user_data() {
+        let t = library(&[("Library/Containers", &["com.gone.journal"])]);
+        let found = leftover_nodes(
+            &t,
+            Path::new("/Users/me"),
+            &HashSet::new(),
+            &Claims::default(),
+        );
+        assert_eq!(found.len(), 1);
+        assert!(found[0].holds_user_data());
+    }
+
+    #[test]
+    fn launch_agents_with_a_live_program_are_kept() {
+        let tmp = tempfile::tempdir().unwrap();
+        let write = |name: &str, program: &str| {
+            let p = tmp.path().join(name);
+            let mut d = plist::Dictionary::new();
+            d.insert("Label".into(), name.into());
+            d.insert(
+                "ProgramArguments".into(),
+                plist::Value::Array(vec![program.into(), "--run".into()]),
+            );
+            plist::Value::Dictionary(d).to_file_xml(&p).unwrap();
+            p
+        };
+        assert!(launch_agent_alive(&write("a.plist", "/bin/sh")));
+        assert!(!launch_agent_alive(&write(
+            "b.plist",
+            "/nonexistent/gone-helper"
+        )));
+        assert!(
+            launch_agent_alive(&write("c.plist", "node")),
+            "PATH lookups are unknown"
+        );
+        assert!(launch_agent_alive(&tmp.path().join("missing.plist")));
     }
 
     #[test]
@@ -968,6 +1095,51 @@ mod tests {
         assert_eq!(plan.len(), 2);
         assert_eq!(plan[0].0.path, PathBuf::from("/Applications/Foo.app"));
         assert!(plan_uninstall(&t, &apps[0], foo_rel, &[other]).is_err());
+
+        // A container shared with the developer's other apps is refused even if asked for.
+        let mut shared = foo_rel[0].clone();
+        shared.confidence = Confidence::Shared;
+        let err = plan_uninstall(&t, &apps[0], &[shared.clone()], &[shared.node]).unwrap_err();
+        assert!(err.contains("shared"));
+    }
+
+    /// An app updated after the scan is not moved, and then neither is its data.
+    #[test]
+    fn data_stays_when_the_app_itself_cannot_move() {
+        use crate::scanner::{scan, std_reader::StdReader};
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path().canonicalize().unwrap();
+        let apps_dir = base.join("Applications");
+        let app = apps_dir.join("Foo.app");
+        std::fs::create_dir_all(app.join("Contents")).unwrap();
+        let data = base.join("Library/Containers/com.foo.bar");
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("notes.db"), "precious").unwrap();
+        let roots = vec![apps_dir.clone(), base.join("Library/Containers")];
+        let out = scan(
+            &StdReader,
+            &roots,
+            &Default::default(),
+            &std::sync::atomic::AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .unwrap();
+        let cand = |p: &Path| {
+            candidate(&out.tree, out.tree.find_path(p).unwrap(), p.to_path_buf()).unwrap()
+        };
+        let plan = vec![cand(&app), cand(&data)];
+        // An update replaces the bundle after the scan.
+        std::fs::remove_dir_all(&app).unwrap();
+        std::fs::create_dir_all(app.join("Contents")).unwrap();
+        let trash_bin = trash::FakeTrash::new(&base).unwrap();
+        let out = uninstall(&plan, &trash::Context::new(roots), &trash_bin);
+        assert!(out.moved.is_empty(), "{:?}", out.moved);
+        assert_eq!(out.skipped.len(), 2);
+        assert!(out.skipped[1].2.contains("app itself"));
+        assert_eq!(
+            std::fs::read_to_string(data.join("notes.db")).unwrap(),
+            "precious"
+        );
     }
 
     /// A real app bundle and its Library files: uninstall moves exactly those, and restoring
@@ -1022,7 +1194,7 @@ mod tests {
         let ids: Vec<NodeId> = foo.iter().map(|r| r.node).collect();
         let plan = plan_uninstall(&out.tree, &apps[0], foo, &ids).unwrap();
         let trash_bin = trash::FakeTrash::new(&base).unwrap();
-        let moved = trash::move_items(&plan, &trash::Context::new(roots), &trash_bin);
+        let moved = uninstall(&plan, &trash::Context::new(roots), &trash_bin);
         assert_eq!(moved.moved.len(), 3, "{:?}", moved.skipped);
         assert!(!apps_dir.join("Foo.app").exists());
         assert!(

@@ -179,7 +179,7 @@ fn run_cleanup(out: &duobolt_core::scanner::ScanOutput) {
     for it in &s.analysis.items {
         let key = match it.source {
             cleanup::Source::Rule(i) => rules.rules[i].id.clone(),
-            cleanup::Source::Leftover => "leftovers".into(),
+            cleanup::Source::Leftover(_) => "leftovers".into(),
         };
         let e = by_rule.entry(key).or_default();
         e.0 += it.bytes;
@@ -203,7 +203,7 @@ fn run_cleanup(out: &duobolt_core::scanner::ScanOutput) {
         .analysis
         .items
         .iter()
-        .filter(|i| i.source == cleanup::Source::Leftover)
+        .filter(|i| matches!(i.source, cleanup::Source::Leftover(_)))
         .take(40)
     {
         println!(

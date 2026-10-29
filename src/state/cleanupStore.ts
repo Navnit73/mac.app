@@ -145,7 +145,7 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
     try {
       const plan = await commands.buildCleanupPlan(id)
       await useTrashStore.getState().openReview(plan.node_ids, 'Cleanup', {
-        action: ({ quitApps }) => commands.executeCleanupPlan(id, quitApps),
+        action: ({ quitApps }) => commands.executeCleanupPlan(id, plan.node_ids, quitApps),
         note: 'Each item is checked again right before it moves: still inside its folder, not changed since the scan, and not in use by an open app.',
         runningApps: plan.running_apps,
       })

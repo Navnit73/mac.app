@@ -227,6 +227,34 @@ pub fn last_used_many(paths: &[&Path]) -> Vec<Option<i64>> {
     found
 }
 
+/// Bundle ids of every app Spotlight knows, wherever it is installed (other folders, external
+/// drives, iPhone apps on Apple silicon). Empty when Spotlight is off or fails.
+pub fn spotlight_app_ids() -> Vec<String> {
+    let out = Command::new("/usr/bin/mdfind")
+        .args([
+            "-attr",
+            "kMDItemCFBundleIdentifier",
+            "kMDItemContentType == 'com.apple.application-bundle'",
+        ])
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+    match out {
+        Ok(o) if o.status.success() => parse_mdfind_ids(&String::from_utf8_lossy(&o.stdout)),
+        _ => Vec::new(),
+    }
+}
+
+/// Lines look like `/Applications/Foo.app   kMDItemCFBundleIdentifier = com.foo.app`.
+fn parse_mdfind_ids(text: &str) -> Vec<String> {
+    text.lines()
+        .filter_map(|l| l.rsplit_once("kMDItemCFBundleIdentifier = "))
+        .map(|(_, id)| id.trim())
+        .filter(|id| !id.is_empty() && *id != "(null)")
+        .map(str::to_string)
+        .collect()
+}
+
 /// Who signed an app (first "Authority=" line of `codesign -dv`), if it is signed.
 pub fn code_signer(app: &Path) -> Option<String> {
     require_absolute(app).ok()?;
@@ -425,6 +453,17 @@ mod tests {
             Some(951_868_800)
         );
         assert_eq!(parse_mdls_date("(null)"), None);
+    }
+
+    #[test]
+    fn parses_spotlight_bundle_ids() {
+        let text = "/Applications/Safari.app   kMDItemCFBundleIdentifier = com.apple.Safari\n\
+                    /Volumes/Ext/My Apps/Tool.app   kMDItemCFBundleIdentifier = com.vendor.tool\n\
+                    /Users/me/Library/x   kMDItemCFBundleIdentifier = (null)\n";
+        assert_eq!(
+            parse_mdfind_ids(text),
+            ["com.apple.Safari", "com.vendor.tool"]
+        );
     }
 
     #[test]

@@ -130,15 +130,20 @@ export const commands = {
   selectCleanupCategory: (scanId: number, category: CategoryId | null, mode: SelectMode) =>
     invoke<CleanupSummary>('select_cleanup_category', { scanId, category, mode }),
   buildCleanupPlan: (scanId: number) => invoke<CleanupPlan>('build_cleanup_plan', { scanId }),
-  executeCleanupPlan: (scanId: number, quitApps: boolean) =>
-    invoke<TrashBatchResult>('execute_cleanup_plan', { scanId, quitApps }),
+  executeCleanupPlan: (scanId: number, nodeIds: number[], quitApps: boolean) =>
+    invoke<TrashBatchResult>('execute_cleanup_plan', { scanId, nodeIds, quitApps }),
 
   startAppsScan: () => invoke<void>('start_apps_scan'),
   listApps: (scanId: number | null) => invoke<AppsList>('list_apps', { scanId }),
   getAppDetails: (appId: number) => invoke<AppDetails>('get_app_details', { appId }),
   appIcon: (appId: number) => invoke<string | null>('app_icon', { appId }),
-  uninstallApp: (appId: number, related: number[], quit: boolean, scanId: number | null) =>
-    invoke<TrashBatchResult>('uninstall_app', { appId, related, quit, scanId }),
+  uninstallApp: (
+    appId: number,
+    bundleId: string,
+    related: number[],
+    quit: boolean,
+    scanId: number | null,
+  ) => invoke<TrashBatchResult>('uninstall_app', { appId, bundleId, related, quit, scanId }),
 }
 
 export const events = {

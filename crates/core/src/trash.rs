@@ -6,7 +6,7 @@
 //! scanned root, and unchanged since the scan (same device, inode, size and modification time).
 //! Any failure skips that item with a reason; a batch is never aborted half way.
 
-use std::ffi::OsString;
+use std::ffi::{CString, OsString};
 use std::os::macos::fs::MetadataExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -54,6 +54,22 @@ pub fn protected_reason(path: &Path) -> Option<&'static str> {
     if starts(&["system"]) || starts(&["bin"]) || starts(&["sbin"]) {
         return Some(SYSTEM);
     }
+    // /Applications, /Library, /opt, /Users ... themselves; what is inside them is checked below.
+    if parts.len() == 1 {
+        return Some("A top-level folder of the startup volume cannot be moved.");
+    }
+    if starts(&["library", "keychains"]) {
+        return Some("Keychains hold your passwords and certificates. They cannot be moved.");
+    }
+    // /Library/Application Support, /Library/Preferences ... themselves.
+    if starts(&["library"]) && parts.len() == 2 {
+        return Some(SYSTEM);
+    }
+    if starts(&["users"]) && parts.len() >= 3 {
+        if let Some(r) = protected_in_home(&parts[2..]) {
+            return Some(r);
+        }
+    }
     if starts(&["usr"]) && !starts(&["usr", "local"]) {
         return Some(SYSTEM);
     }
@@ -74,6 +90,69 @@ pub fn protected_reason(path: &Path) -> Option<&'static str> {
         return Some("A user's home folder cannot be moved.");
     }
     None
+}
+
+/// Checks below a home folder; `rel` is the lower-cased components after `/Users/<name>`.
+fn protected_in_home(rel: &[&str]) -> Option<&'static str> {
+    const STANDARD: &[&str] = &[
+        "applications",
+        "desktop",
+        "documents",
+        "downloads",
+        "library",
+        "movies",
+        "music",
+        "pictures",
+        "public",
+        "sites",
+    ];
+    match rel {
+        [name] if STANDARD.contains(name) => {
+            Some("A standard folder of your home folder cannot be moved. Items inside it can.")
+        }
+        // Private keys cannot be downloaded again.
+        [".ssh", ..] | [".gnupg", ..] => Some("Holds your private keys. DuoBolt never moves it."),
+        ["library", "keychains", ..] => {
+            Some("Keychains hold your passwords and certificates. They cannot be moved.")
+        }
+        // Moving an iCloud Drive or cloud provider folder deletes it on every device.
+        ["library", "mobile documents" | "cloudstorage", ..] if rel.len() <= 3 => {
+            Some("A synced cloud folder. Removing it would remove it from your other devices too.")
+        }
+        // ~/Library/Caches, ~/Library/Mail, ~/Library/Containers ... themselves.
+        ["library", _] => {
+            Some("A system folder in your Library cannot be moved. Items inside it can.")
+        }
+        _ => None,
+    }
+}
+
+/// `rename` that fails with `AlreadyExists` instead of replacing whatever is at `to`.
+pub fn rename_no_replace(from: &Path, to: &Path) -> std::io::Result<()> {
+    use std::os::unix::ffi::OsStrExt;
+    let (Ok(f), Ok(t)) = (
+        CString::new(from.as_os_str().as_bytes()),
+        CString::new(to.as_os_str().as_bytes()),
+    ) else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "path contains NUL",
+        ));
+    };
+    // SAFETY: both are valid NUL-terminated strings for the duration of the call.
+    let rc = unsafe { libc::renamex_np(f.as_ptr(), t.as_ptr(), libc::RENAME_EXCL) };
+    if rc == 0 {
+        return Ok(());
+    }
+    let err = std::io::Error::last_os_error();
+    // Some volumes (exFAT, network shares) lack exclusive rename: check, then rename.
+    if err.raw_os_error() == Some(libc::ENOTSUP) {
+        if std::fs::symlink_metadata(to).is_ok() {
+            return Err(std::io::ErrorKind::AlreadyExists.into());
+        }
+        return std::fs::rename(from, to);
+    }
+    Err(err)
 }
 
 /// What the scan recorded about an item; it must still match right before the move.
@@ -344,9 +423,11 @@ pub fn restore(trashed: &Path, original: &Path, allow_rename: bool) -> Restore {
             return Restore::Failed(e.to_string());
         }
     }
-    match std::fs::rename(trashed, &target) {
+    // Something may have appeared at the target since the check above; never replace it.
+    match rename_no_replace(trashed, &target) {
         Ok(()) if renamed => Restore::Renamed(target),
         Ok(()) => Restore::Restored(target),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Restore::Conflict,
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => Restore::Failed(
             "macOS blocked access to the Trash. Grant Full Disk Access, then try again.".into(),
         ),
@@ -450,6 +531,56 @@ mod tests {
             assert!(p(s).is_none(), "{s}");
         }
         assert!(p("/Volumes/Ext").is_some());
+    }
+
+    #[test]
+    fn top_level_and_home_essentials_are_protected() {
+        for s in [
+            "/Applications",
+            "/Library",
+            "/opt",
+            "/Library/Application Support",
+            "/Library/Keychains/System.keychain",
+            "/Users/me/Documents",
+            "/Users/me/desktop",
+            "/Users/me/Library",
+            "/Users/me/Library/Caches",
+            "/Users/me/Library/Mail",
+            "/Users/me/Library/Keychains/login.keychain-db",
+            "/Users/me/Library/Mobile Documents/com~apple~CloudDocs",
+            "/Users/me/Library/CloudStorage/Dropbox",
+            "/Users/me/.ssh",
+            "/Users/me/.ssh/id_ed25519",
+            "/Users/me/.gnupg/private-keys-v1.d/x.key",
+        ] {
+            assert!(p(s).is_some(), "{s}");
+        }
+        for s in [
+            "/Users/me/Documents/report.pdf",
+            "/Users/me/Library/Caches/com.example.app",
+            "/Users/me/Library/Mobile Documents/com~apple~CloudDocs/old.zip",
+            "/Users/me/Library/CloudStorage/Dropbox/big.mov",
+            "/Library/Application Support/Vendor",
+            "/Users/me/.npm/_cacache",
+        ] {
+            assert!(p(s).is_none(), "{s}");
+        }
+    }
+
+    #[test]
+    fn rename_no_replace_never_overwrites() {
+        let e = env();
+        let a = e.root.join("a.txt");
+        let b = e.root.join("b.txt");
+        file(&a, b"a");
+        file(&b, b"b");
+        let err = rename_no_replace(&a, &b).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::AlreadyExists);
+        assert_eq!(std::fs::read(&b).unwrap(), b"b");
+        assert!(a.exists());
+        let c = e.root.join("c.txt");
+        rename_no_replace(&a, &c).unwrap();
+        assert_eq!(std::fs::read(&c).unwrap(), b"a");
     }
 
     /// A temp tree whose canonical path is used as the scan root.
