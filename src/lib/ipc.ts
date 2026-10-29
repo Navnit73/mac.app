@@ -4,6 +4,14 @@ import type { AppError } from '../types/bindings/AppError'
 import type { ChartMode } from '../types/bindings/ChartMode'
 import type { ChartNode } from '../types/bindings/ChartNode'
 import type { ChildrenPage } from '../types/bindings/ChildrenPage'
+import type { AppDetails } from '../types/bindings/AppDetails'
+import type { AppsDoneEvent } from '../types/bindings/AppsDoneEvent'
+import type { AppsList } from '../types/bindings/AppsList'
+import type { CategoryId } from '../types/bindings/CategoryId'
+import type { CleanupItemsPage } from '../types/bindings/CleanupItemsPage'
+import type { CleanupPlan } from '../types/bindings/CleanupPlan'
+import type { CleanupSummary } from '../types/bindings/CleanupSummary'
+import type { SelectMode } from '../types/bindings/SelectMode'
 import type { Crumb } from '../types/bindings/Crumb'
 import type { DupDoneEvent } from '../types/bindings/DupDoneEvent'
 import type { DupGroupsPage } from '../types/bindings/DupGroupsPage'
@@ -111,6 +119,26 @@ export const commands = {
   duplicateSelection: (scanId: number) => invoke<number[]>('duplicate_selection', { scanId }),
   removeDuplicates: (scanId: number, clones: boolean) =>
     invoke<TrashBatchResult>('remove_duplicates', { scanId, clones }),
+
+  /** `refreshApps` re-reads which apps are open and installed. */
+  getCleanup: (scanId: number, refreshApps: boolean) =>
+    invoke<CleanupSummary>('get_cleanup', { scanId, refreshApps }),
+  listCleanupItems: (scanId: number, category: CategoryId, page: number) =>
+    invoke<CleanupItemsPage>('list_cleanup_items', { scanId, category, page }),
+  setCleanupSelected: (scanId: number, nodeIds: number[], selected: boolean, confirmed: boolean) =>
+    invoke<CleanupSummary>('set_cleanup_selected', { scanId, nodeIds, selected, confirmed }),
+  selectCleanupCategory: (scanId: number, category: CategoryId | null, mode: SelectMode) =>
+    invoke<CleanupSummary>('select_cleanup_category', { scanId, category, mode }),
+  buildCleanupPlan: (scanId: number) => invoke<CleanupPlan>('build_cleanup_plan', { scanId }),
+  executeCleanupPlan: (scanId: number, quitApps: boolean) =>
+    invoke<TrashBatchResult>('execute_cleanup_plan', { scanId, quitApps }),
+
+  startAppsScan: () => invoke<void>('start_apps_scan'),
+  listApps: (scanId: number | null) => invoke<AppsList>('list_apps', { scanId }),
+  getAppDetails: (appId: number) => invoke<AppDetails>('get_app_details', { appId }),
+  appIcon: (appId: number) => invoke<string | null>('app_icon', { appId }),
+  uninstallApp: (appId: number, related: number[], quit: boolean, scanId: number | null) =>
+    invoke<TrashBatchResult>('uninstall_app', { appId, related, quit, scanId }),
 }
 
 export const events = {
@@ -124,6 +152,8 @@ export const events = {
     listen<DupProgress>('dupes://progress', (ev) => handler(ev.payload)),
   onDupesDone: (handler: (e: DupDoneEvent) => void): Promise<UnlistenFn> =>
     listen<DupDoneEvent>('dupes://done', (ev) => handler(ev.payload)),
+  onAppsDone: (handler: (e: AppsDoneEvent) => void): Promise<UnlistenFn> =>
+    listen<AppsDoneEvent>('apps://done', (ev) => handler(ev.payload)),
 }
 
 export function describeError(e: unknown): string {

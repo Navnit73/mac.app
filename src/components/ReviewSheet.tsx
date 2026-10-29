@@ -12,11 +12,17 @@ const RISK = {
   Careful: { cls: 'badge-careful', label: 'Careful' },
 } as const
 
+function listNames(names: string[]): string {
+  if (names.length <= 2) return names.join(' and ')
+  return `${names.slice(0, 2).join(', ')} and ${names.length - 2} more`
+}
+
 /** The one place every removal is confirmed. Nothing moves until the user presses the button. */
 export default function ReviewSheet() {
   const review = useTrashStore((s) => s.review)
   const close = useTrashStore((s) => s.closeReview)
   const confirm = useTrashStore((s) => s.confirmReview)
+  const setQuitApps = useTrashStore((s) => s.setQuitApps)
   const p = review?.preview
 
   return (
@@ -98,6 +104,25 @@ export default function ReviewSheet() {
         <p role="alert" className="mx-5 my-3 rounded-lg bg-bad-soft px-3 py-2 text-bad">
           {review.error}
         </p>
+      )}
+
+      {review?.runningApps && review.runningApps.length > 0 && (
+        <label className="mx-5 my-3 flex items-start gap-2 rounded-lg bg-warn-soft px-3 py-2">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={review.quitApps}
+            disabled={review.moving}
+            onChange={(e) => setQuitApps(e.target.checked)}
+          />
+          <span>
+            <span className="font-medium">Quit {listNames(review.runningApps)} first</span>
+            <span className="block text-xs text-muted">
+              They are open and use some of these items. DuoBolt asks them to quit the normal way
+              (they may ask to save). Without this, their items are left alone.
+            </span>
+          </span>
+        </label>
       )}
 
       <div className="flex items-center gap-3 border-t border-line px-5 py-4">

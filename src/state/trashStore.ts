@@ -12,9 +12,12 @@ interface Review {
   nodeIds: number[]
   room: Room
   /** Replaces the plain move, e.g. Duplicates verifies every copy first. */
-  action?: () => Promise<TrashBatchResult>
+  action?: (opts: { quitApps: boolean }) => Promise<TrashBatchResult>
   /** Extra line shown in the sheet, explaining what happens. */
   note?: string
+  /** Open apps that own selected items; the sheet offers to quit them first. */
+  runningApps?: string[]
+  quitApps: boolean
   preview: TrashPreview | null
   error: string | null
   moving: boolean
@@ -31,8 +34,13 @@ interface TrashStore {
   openReview: (
     nodeIds: number[],
     room: Room,
-    extra?: { action?: () => Promise<TrashBatchResult>; note?: string },
+    extra?: {
+      action?: (opts: { quitApps: boolean }) => Promise<TrashBatchResult>
+      note?: string
+      runningApps?: string[]
+    },
   ) => Promise<void>
+  setQuitApps: (on: boolean) => void
   closeReview: () => void
   confirmReview: () => Promise<void>
   undoBatch: (batchId: number) => Promise<void>
@@ -53,7 +61,17 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
   openReview: async (nodeIds, room, extra) => {
     const id = scanId()
     if (id === null || nodeIds.length === 0) return
-    set({ review: { nodeIds, room, preview: null, error: null, moving: false, ...extra } })
+    set({
+      review: {
+        nodeIds,
+        room,
+        preview: null,
+        error: null,
+        moving: false,
+        quitApps: false,
+        ...extra,
+      },
+    })
     try {
       const preview = await commands.previewTrash(id, nodeIds)
       set((s) => (s.review ? { review: { ...s.review, preview } } : s))
@@ -61,6 +79,8 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
       set((s) => (s.review ? { review: { ...s.review, error: describeError(e) } } : s))
     }
   },
+
+  setQuitApps: (on) => set((s) => (s.review ? { review: { ...s.review, quitApps: on } } : s)),
 
   closeReview: () => set({ review: null }),
 
@@ -71,7 +91,9 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
     const allowed = r.preview.items.filter((i) => i.blocked === null).map((i) => i.node_id)
     set({ review: { ...r, moving: true, error: null } })
     try {
-      const result = r.action ? await r.action() : await commands.trashItems(id, allowed, r.room)
+      const result = r.action
+        ? await r.action({ quitApps: r.quitApps })
+        : await commands.trashItems(id, allowed, r.room)
       set({ review: null, banner: { kind: 'moved', result } })
       useSpaceStore.getState().select(null)
       useFindStore.getState().set({ selected: [] })

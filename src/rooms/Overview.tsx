@@ -8,6 +8,7 @@ import ScanReportDialog from '../components/ScanReportDialog'
 import StorageBar from '../components/StorageBar'
 import { commands, describeError } from '../lib/ipc'
 import { formatBytes, formatCount, formatDuration } from '../lib/format'
+import { useCleanupStore } from '../state/cleanupStore'
 import { useFdaStore } from '../state/fdaStore'
 import { useScanStore } from '../state/scanStore'
 import { useSpaceStore } from '../state/spaceStore'
@@ -133,8 +134,15 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
             <button
               type="button"
               className="btn btn-primary mt-2"
-              disabled
-              title="Review & Clear arrives with Cleanup (M6)"
+              title="Review the safe items, then move them to the Trash"
+              onClick={() => {
+                navigate('/cleanup')
+                // A fresh plan of only the suggested (safe) items, shown in the Review sheet.
+                void commands
+                  .selectCleanupCategory(scanId, null, 'Defaults')
+                  .then(() => useCleanupStore.getState().review())
+                  .catch((e) => setError(describeError(e)))
+              }}
             >
               Review &amp; Clear
             </button>
