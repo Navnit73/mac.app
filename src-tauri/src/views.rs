@@ -8,8 +8,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use duobolt_core::index::NodeId;
 use duobolt_core::models::{
-    ChartMode, ChartNode, ChildrenPage, Crumb, FdaStatus, NodeDetails, OverviewSummary, ScanId,
-    SmartGroupSummary, SortKey, TopFilesResult, TopFilters,
+    ChartMode, ChartNode, ChildrenPage, Crumb, FdaStatus, FdaTarget, NodeDetails, OverviewSummary,
+    ScanId, SmartGroupSummary, SortKey, TopFilesResult, TopFilters,
 };
 use duobolt_core::{inspect, overview, platform, space, AppError};
 use tauri::State;
@@ -39,6 +39,20 @@ pub async fn get_fda_status() -> Result<FdaStatus, AppError> {
 #[tauri::command]
 pub async fn open_fda_settings() -> Result<(), AppError> {
     platform::open_full_disk_access_settings()
+}
+
+/// The app to turn on in Full Disk Access (DuoBolt, or the app hosting it while developing).
+#[tauri::command]
+pub async fn get_fda_target() -> Result<Option<FdaTarget>, AppError> {
+    Ok(platform::fda_target())
+}
+
+/// Show that app in Finder so it can be dragged into the Full Disk Access list.
+#[tauri::command]
+pub async fn reveal_fda_target() -> Result<(), AppError> {
+    let target = platform::fda_target()
+        .ok_or_else(|| AppError::NotFound("Could not tell which app to allow.".into()))?;
+    platform::reveal_in_finder(std::path::Path::new(&target.path))
 }
 
 #[tauri::command]

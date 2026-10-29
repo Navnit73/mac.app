@@ -142,7 +142,7 @@ export default function Space() {
   if (phase === 'idle' || phase === 'running' || scanId === null || currentId === null) {
     return (
       <section className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
           <Icon name="space" size={26} />
         </div>
         <h1 className="text-2xl font-semibold">
@@ -188,6 +188,7 @@ export default function Space() {
                   value={colorBy}
                   onChange={setColorBy}
                   options={[
+                    { value: 'folder', label: 'Folder' },
                     { value: 'kind', label: 'Kind' },
                     { value: 'age', label: 'Age' },
                   ]}

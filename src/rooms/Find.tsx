@@ -16,7 +16,10 @@ import type { NodeRow } from '../types/bindings/NodeRow'
 import type { SearchMode } from '../types/bindings/SearchMode'
 import type { SearchSort } from '../types/bindings/SearchSort'
 
-const ROW = 46
+const ROW = 54
+const HEAD = 34
+/** Name, kind, modified, size. Shared by the header and the rows so columns line up. */
+const COLS = 'grid grid-cols-[minmax(0,1fr)_6.5rem_7rem_5.5rem] items-center gap-4'
 const DEBOUNCE_MS = 40
 
 const MODES: { value: SearchMode; label: string; hint: string }[] = [
@@ -61,7 +64,7 @@ function Name({ row, text, mode }: { row: NodeRow; text: string; mode: SearchMod
   return (
     <>
       {parts[0]}
-      <mark className="rounded-[3px] bg-accent-soft font-semibold text-fg">{parts[1]}</mark>
+      <mark className="rounded-[3px] bg-accent-soft px-px font-semibold text-fg">{parts[1]}</mark>
       {parts[2]}
     </>
   )
@@ -83,7 +86,7 @@ function Select<T extends string>({
       aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value as T)}
-      className={`btn h-6 rounded-full pr-6 text-xs ${value !== options[0]?.value ? 'border-accent bg-accent-soft' : ''}`}
+      className={`btn h-7 rounded-lg pr-6 text-xs ${value !== options[0]?.value ? 'border-accent bg-selected text-accent-ink' : 'text-muted'}`}
     >
       {options.map((o) => (
         <option key={o.value} value={o.value}>
@@ -91,6 +94,52 @@ function Select<T extends string>({
         </option>
       ))}
     </select>
+  )
+}
+
+function kindLabel(r: NodeRow): string {
+  return r.kind === 'Dir' && !r.is_package ? 'Folder' : KIND_LABEL[r.file_kind]
+}
+
+/** A column title that sorts by it; a second click reverses the order. */
+function SortHead({
+  label,
+  by,
+  sort,
+  descending,
+  align = 'left',
+  onSort,
+}: {
+  label: string
+  by: SearchSort | null
+  sort: SearchSort
+  descending: boolean
+  align?: 'left' | 'right'
+  onSort: (by: SearchSort) => void
+}) {
+  const active = by !== null && sort === by
+  if (by === null) {
+    return <span className={align === 'right' ? 'text-right' : ''}>{label}</span>
+  }
+  // Natural order: A to Z, newest first, largest first.
+  const up = by === 'Name' ? !descending : descending
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(by)}
+      aria-label={`Sort by ${label.toLowerCase()}`}
+      className={`flex items-center gap-1 hover:text-fg ${align === 'right' ? 'justify-end' : ''} ${active ? 'text-fg' : ''}`}
+    >
+      {label}
+      {active && (
+        <Icon
+          name="chevron"
+          size={11}
+          strokeWidth={2.4}
+          className={up ? '-rotate-90' : 'rotate-90'}
+        />
+      )}
+    </button>
   )
 }
 
@@ -185,6 +234,7 @@ export default function Find() {
     getScrollElement: () => scroller.current,
     estimateSize: () => ROW,
     overscan: 10,
+    scrollMargin: rows.length > 0 ? HEAD : 0,
   })
   const items = virt.getVirtualItems()
   const last = items[items.length - 1]
@@ -249,7 +299,7 @@ export default function Find() {
   if (!ready) {
     return (
       <section className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
           <Icon name="find" size={26} />
         </div>
         <h1 className="text-2xl font-semibold">
@@ -263,6 +313,9 @@ export default function Find() {
     )
   }
 
+  const sortBy = (by: SearchSort) =>
+    set(sort === by ? { descending: !descending } : { sort: by, descending: false })
+
   const filtersOn =
     kind !== null || size !== 'any' || date !== 'any' || hidden !== 'Include' || scope !== null
 
@@ -274,8 +327,8 @@ export default function Find() {
             <span className="sr-only">Search by name</span>
             <Icon
               name="find"
-              size={16}
-              className="absolute top-1/2 left-3 -translate-y-1/2 text-faint"
+              size={17}
+              className="absolute top-1/2 left-3.5 -translate-y-1/2 text-faint"
             />
             <input
               id="find-input"
@@ -300,8 +353,23 @@ export default function Find() {
               }
               spellCheck={false}
               autoCorrect="off"
-              className={`h-10 w-full rounded-xl border bg-raised pr-3 pl-9 text-[15px] outline-none focus:border-accent ${patternError ? 'border-bad' : 'border-line-strong'}`}
+              aria-invalid={patternError !== null}
+              className="h-11 w-full rounded-xl border border-line-strong bg-raised pr-10 pl-10 text-[15px] placeholder:text-faint"
             />
+            {text && (
+              <button
+                type="button"
+                aria-label="Clear search"
+                title="Clear (Esc)"
+                onClick={() => {
+                  set({ text: '' })
+                  input.current?.focus()
+                }}
+                className="absolute top-1/2 right-2.5 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-track text-muted hover:bg-line-strong hover:text-fg"
+              >
+                <Icon name="close" size={12} strokeWidth={2.2} />
+              </button>
+            )}
           </label>
           <div className="seg" role="group" aria-label="Match mode">
             {MODES.map((m) => (
@@ -368,7 +436,7 @@ export default function Find() {
           {filtersOn && (
             <button
               type="button"
-              className="text-xs text-accent hover:underline"
+              className="text-xs text-accent-ink hover:underline"
               onClick={() =>
                 set({ kind: null, size: 'any', date: 'any', hidden: 'Include', scope: null })
               }
@@ -424,7 +492,7 @@ export default function Find() {
           </button>
           <button
             type="button"
-            className="ml-auto text-xs text-accent hover:underline"
+            className="ml-auto text-xs text-accent-ink hover:underline"
             onClick={() => set({ selected: [] })}
           >
             Deselect
@@ -457,7 +525,42 @@ export default function Find() {
             </p>
           </div>
         )}
-        <div style={{ height: virt.getTotalSize(), position: 'relative' }}>
+        {rows.length > 0 && (
+          <div
+            className={`${COLS} eyebrow sticky top-0 z-10 border-b border-line bg-panel px-5`}
+            style={{ height: HEAD }}
+          >
+            <span className="pl-11">
+              <SortHead
+                label="Name"
+                by="Name"
+                sort={sort}
+                descending={descending}
+                onSort={sortBy}
+              />
+            </span>
+            <SortHead label="Kind" by={null} sort={sort} descending={descending} onSort={sortBy} />
+            <SortHead
+              label="Modified"
+              by="Modified"
+              sort={sort}
+              descending={descending}
+              align="right"
+              onSort={sortBy}
+            />
+            <SortHead
+              label="Size"
+              by="Size"
+              sort={sort}
+              descending={descending}
+              align="right"
+              onSort={sortBy}
+            />
+          </div>
+        )}
+        <div
+          style={{ height: virt.getTotalSize() - virt.options.scrollMargin, position: 'relative' }}
+        >
           {items.map((v) => {
             const r = rows[v.index]
             if (!r || scanId === null) return null
@@ -470,61 +573,80 @@ export default function Find() {
                 aria-selected={isSel}
                 onClick={(e) => click(e, v.index, r.id)}
                 onDoubleClick={() => void action(() => commands.openNode(scanId, r.id), r.id)}
-                className={`group absolute inset-x-0 flex items-center gap-3 px-5 ${isSel ? 'bg-selected' : 'hover:bg-hover'} ${gone ? 'opacity-50' : ''}`}
-                style={{ top: v.start, height: ROW }}
+                className={`${COLS} group absolute inset-x-0 border-b border-line px-5 ${isSel ? 'bg-selected' : 'hover:bg-hover'} ${gone ? 'opacity-50' : ''}`}
+                style={{ top: v.start - virt.options.scrollMargin, height: ROW }}
               >
-                <EntryIcon kind={r.file_kind} isDir={r.kind === 'Dir'} isPackage={r.is_package} />
-                <div className="min-w-0 flex-1">
-                  <p className={`truncate ${gone ? 'line-through' : ''}`} title={r.name}>
-                    <Name row={r} text={text} mode={mode} />
-                    {gone && <span className="badge badge-review ml-2 no-underline">Missing</span>}
-                  </p>
-                  <p className="truncate text-xs text-muted" title={r.location ?? ''}>
-                    {middleTruncate(tildify(r.location), 80)}
-                  </p>
+                {isSel && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 w-[3px] bg-accent"
+                  />
+                )}
+                <div className="flex min-w-0 items-center gap-3">
+                  <EntryIcon
+                    kind={r.file_kind}
+                    isDir={r.kind === 'Dir'}
+                    isPackage={r.is_package}
+                    large
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className={`truncate text-[13.5px] font-medium ${gone ? 'line-through' : ''}`}
+                      title={r.name}
+                    >
+                      <Name row={r} text={text} mode={mode} />
+                      {gone && (
+                        <span className="badge badge-review ml-2 no-underline">Missing</span>
+                      )}
+                    </p>
+                    <p className="truncate text-xs text-faint" title={r.location ?? ''}>
+                      {middleTruncate(tildify(r.location), 80)}
+                    </p>
+                  </div>
+                  <div className="hidden shrink-0 items-center rounded-lg border border-line bg-panel group-hover:flex">
+                    <button
+                      type="button"
+                      className="btn btn-ghost h-7 rounded-none rounded-l-lg px-2"
+                      title="Reveal in Finder"
+                      aria-label="Reveal in Finder"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void action(() => commands.revealInFinder(scanId, r.id), r.id)
+                      }}
+                    >
+                      <Icon name="reveal" size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost h-7 rounded-none border-x border-x-line px-2"
+                      title="Quick Look"
+                      aria-label="Quick Look"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void action(() => commands.quickLook(scanId, r.id), r.id)
+                      }}
+                    >
+                      <Icon name="eye" size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost h-7 rounded-none rounded-r-lg px-2"
+                      title="Copy path"
+                      aria-label="Copy path"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        void navigator.clipboard
+                          .writeText(`${r.location ?? ''}/${r.name}`)
+                          .then(() => setNote('Path copied.'))
+                      }}
+                    >
+                      <Icon name="copy" size={13} />
+                    </button>
+                  </div>
                 </div>
-                <div className="hidden items-center gap-1 group-hover:flex">
-                  <button
-                    type="button"
-                    className="btn btn-ghost h-6 px-1.5"
-                    title="Reveal in Finder"
-                    aria-label="Reveal in Finder"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void action(() => commands.revealInFinder(scanId, r.id), r.id)
-                    }}
-                  >
-                    <Icon name="reveal" size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost h-6 px-1.5"
-                    title="Quick Look"
-                    aria-label="Quick Look"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void action(() => commands.quickLook(scanId, r.id), r.id)
-                    }}
-                  >
-                    <Icon name="eye" size={13} />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-ghost h-6 px-1.5"
-                    title="Copy path"
-                    aria-label="Copy path"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void navigator.clipboard
-                        .writeText(`${r.location ?? ''}/${r.name}`)
-                        .then(() => setNote('Path copied.'))
-                    }}
-                  >
-                    <Icon name="copy" size={13} />
-                  </button>
-                </div>
-                <span className="num w-24 text-right text-muted">{formatAge(r.mtime)}</span>
-                <span className="num w-20 text-right font-semibold">{formatBytes(r.size)}</span>
+                <span className="truncate text-muted">{kindLabel(r)}</span>
+                <span className="num text-right text-muted">{formatAge(r.mtime)}</span>
+                <span className="num text-right font-semibold">{formatBytes(r.size)}</span>
               </div>
             )
           })}

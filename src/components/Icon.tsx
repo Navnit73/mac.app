@@ -13,6 +13,8 @@ const PATHS = {
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z',
   file: 'M7 3h7l5 5v13H7zM14 3v5h5',
   package: 'm12 3 8 4.5v9L12 21l-8-4.5v-9ZM4 7.5l8 4.5 8-4.5M12 12v9',
+  regen: 'M20 12a8 8 0 1 1-2.34-5.66M20 4v4h-4',
+  bolt: 'M13 3 5 13.5h6L10 21l8-10.5h-6Z',
   chevron: 'm9 6 6 6-6 6',
   back: 'm15 6-6 6 6 6',
   forward: 'm9 6 6 6-6 6',

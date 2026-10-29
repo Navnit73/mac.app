@@ -43,7 +43,9 @@ function ItemRow({
     else void setSelected(item, on)
   }
   return (
-    <li className="group flex items-center gap-3 border-b border-line px-4 py-2 last:border-0">
+    <li
+      className={`group flex items-center gap-3 border-b border-line px-5 py-2.5 last:border-0 ${item.selected ? '' : 'hover:bg-hover'}`}
+    >
       {item.report_only ? (
         <span className="flex w-[13px] justify-center text-faint" title="DuoBolt leaves this alone">
           <Icon name="lock" size={12} />
@@ -58,17 +60,17 @@ function ItemRow({
       )}
       <div className="min-w-0 flex-1">
         <p className="truncate" title={item.path}>
-          {item.name}
-          <span className="ml-2 text-xs text-muted">{item.rule_name}</span>
+          <span className="font-medium">{item.name}</span>
+          <span className="ml-2 text-xs text-faint">{item.rule_name}</span>
         </p>
-        <p className="truncate text-xs text-muted" title={item.path}>
+        <p className="truncate text-xs text-faint" title={item.path}>
           {middleTruncate(tildify(item.path), 84)}
           {' · '}
           {item.is_dir ? `${formatCount(item.files)} files · ` : ''}
           changed {formatAge(item.mtime).toLowerCase()}
         </p>
         {item.guidance && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-accent">
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-accent-ink">
             <Icon name="info" size={11} /> {item.guidance}
           </p>
         )}
@@ -80,8 +82,11 @@ function ItemRow({
           </span>
         )}
         {item.regenerates && !item.report_only && (
-          <span className="badge bg-track text-muted" title="Apps or tools recreate it">
-            Comes back
+          <span
+            className="flex items-center gap-1 pr-1 text-xs text-faint"
+            title="Apps or tools recreate it"
+          >
+            <Icon name="regen" size={12} /> Comes back
           </span>
         )}
         <RiskBadge risk={item.risk} />
@@ -124,13 +129,15 @@ function CategoryCard({
         onClick={() => !empty && toggleExpanded(c.id)}
         aria-expanded={open}
         disabled={empty}
-        className="flex w-full items-start gap-3 px-5 py-4 text-left hover:bg-hover disabled:hover:bg-transparent"
+        className="flex w-full items-start gap-4 px-5 py-4 text-left hover:bg-hover disabled:hover:bg-transparent"
       >
         <span
-          className="mt-1 h-3 w-3 shrink-0 rounded-[4px]"
-          style={{ background: CATEGORY_COLOR[c.id] }}
+          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+          style={{ background: `color-mix(in srgb, ${CATEGORY_COLOR[c.id]} 16%, transparent)` }}
           aria-hidden="true"
-        />
+        >
+          <span className="h-2.5 w-2.5 rounded-full" style={{ background: CATEGORY_COLOR[c.id] }} />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[15px] font-semibold">{c.name}</span>
@@ -141,8 +148,8 @@ function CategoryCard({
           </div>
           <p className="mt-0.5 text-muted">{c.blurb}</p>
           {!empty && (
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-1.5 w-40 overflow-hidden rounded-full bg-track" aria-hidden="true">
+            <div className="mt-2.5 flex items-center gap-2.5">
+              <div className="h-1.5 w-48 overflow-hidden rounded-full bg-track" aria-hidden="true">
                 <div
                   className="h-full rounded-full"
                   style={{ width: `${share * 100}%`, background: CATEGORY_COLOR[c.id] }}
@@ -154,40 +161,42 @@ function CategoryCard({
             </div>
           )}
         </div>
-        <span className="num text-xl font-semibold">{formatBytes(c.bytes)}</span>
+        <div className="text-right">
+          <p className="num font-display text-xl font-semibold tracking-tight">
+            {formatBytes(c.bytes)}
+          </p>
+          {!empty && <p className="text-xs text-faint">found</p>}
+        </div>
         {!empty && (
           <Icon
             name="chevron"
             size={14}
-            className={`mt-1.5 text-faint transition-transform ${open ? 'rotate-90' : ''}`}
+            className={`mt-2 text-faint transition-transform ${open ? 'rotate-90' : ''}`}
           />
         )}
       </button>
       {open && (
         <div className="border-t border-line">
-          <div className="flex items-center gap-3 bg-hover px-5 py-1.5 text-xs">
-            <button
-              type="button"
-              className="text-accent hover:underline"
-              onClick={() => void selectCategory(c.id, 'All')}
-            >
-              Select all
-            </button>
-            <button
-              type="button"
-              className="text-accent hover:underline"
-              onClick={() => void selectCategory(c.id, 'None')}
-            >
-              Select none
-            </button>
-            <button
-              type="button"
-              className="text-accent hover:underline"
-              onClick={() => void selectCategory(c.id, 'Defaults')}
-              title="Safe items of apps that are not open"
-            >
-              Suggested
-            </button>
+          <div className="flex items-center gap-3 border-b border-line bg-bg px-5 py-2 text-xs">
+            <span className="text-muted">Select</span>
+            <div className="seg text-xs" role="group" aria-label={`Select ${c.name}`}>
+              <button type="button" onClick={() => void selectCategory(c.id, 'All')}>
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => void selectCategory(c.id, 'Defaults')}
+                title="Safe items of apps that are not open"
+              >
+                Suggested
+              </button>
+              <button type="button" onClick={() => void selectCategory(c.id, 'None')}>
+                None
+              </button>
+            </div>
+            <span className="num ml-auto text-muted">
+              {formatCount(c.selected_items)} of {formatCount(c.items)} selected
+            </span>
           </div>
           <ul>
             {list?.items.map((it) => (
@@ -203,6 +212,84 @@ function CategoryCard({
         </div>
       )}
     </li>
+  )
+}
+
+/**
+ * Where the selected space comes from: one bar, a segment per category in its data color, with
+ * a legend that names each one (color is never the only label).
+ */
+function SelectionBar({ categories, found }: { categories: CleanupCategory[]; found: number }) {
+  const parts = categories.filter((c) => c.selected_bytes > 0)
+  if (found === 0) return null
+  return (
+    <div className="flex w-full flex-col gap-2.5 border-t border-line pt-4">
+      <div
+        className="flex h-2.5 w-full gap-[2px] overflow-hidden rounded-full bg-track"
+        role="img"
+        aria-label={`Selected: ${parts.map((c) => `${c.name} ${formatBytes(c.selected_bytes)}`).join(', ') || 'nothing'}`}
+      >
+        {parts.map((c) => (
+          <span
+            key={c.id}
+            title={`${c.name}: ${formatBytes(c.selected_bytes)}`}
+            className="h-full"
+            style={{
+              width: `${(c.selected_bytes / found) * 100}%`,
+              minWidth: 3,
+              background: CATEGORY_COLOR[c.id],
+            }}
+          />
+        ))}
+      </div>
+      <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+        {parts.map((c) => (
+          <li key={c.id} className="flex items-center gap-1.5">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ background: CATEGORY_COLOR[c.id] }}
+              aria-hidden="true"
+            />
+            <span className="text-muted">{c.name}</span>
+            <span className="num font-semibold">{formatBytes(c.selected_bytes)}</span>
+          </li>
+        ))}
+        {parts.length === 0 && <li className="text-muted">Nothing selected yet.</li>}
+        <li className="ml-auto flex items-center gap-1.5 text-muted">
+          <span
+            className="h-2 w-2 rounded-full border border-line-strong bg-track"
+            aria-hidden="true"
+          />
+          Not selected
+        </li>
+      </ul>
+    </div>
+  )
+}
+
+/** What the three risk levels mean, said once at the top. */
+function RiskLegend() {
+  const rows: { risk: Risk; text: string }[] = [
+    { risk: 'Safe', text: 'Selected for you. Apps and tools rebuild it.' },
+    { risk: 'Review', text: 'Does not come back on its own. Look before you tick it.' },
+    { risk: 'Careful', text: 'May hold data you need. Confirmed one at a time.' },
+  ]
+  return (
+    <section className="grid gap-3 sm:grid-cols-3" aria-label="What the labels mean">
+      {rows.map((r) => (
+        <div
+          key={r.risk}
+          className="flex flex-col items-start gap-1.5 rounded-xl border border-line bg-panel p-3.5"
+        >
+          <RiskBadge risk={r.risk} />
+          <p className="text-xs text-muted">{r.text}</p>
+        </div>
+      ))}
+      <p className="flex items-center gap-1.5 text-xs text-muted sm:col-span-3">
+        <Icon name="shield" size={12} className="text-accent-ink" />
+        Everything goes to the Trash first, and you can undo it from Activity.
+      </p>
+    </section>
   )
 }
 
@@ -226,7 +313,7 @@ export default function Cleanup() {
   if (!ready || scanId === null) {
     return (
       <section className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
           <Icon name="cleanup" size={26} />
         </div>
         <h1 className="text-2xl font-semibold">
@@ -251,15 +338,15 @@ export default function Cleanup() {
   const foundItems = summary.categories.reduce((a, c) => a + c.items, 0)
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <div className="mx-auto flex max-w-4xl flex-col gap-4">
-        <section className="card sticky top-0 z-10 flex flex-wrap items-center gap-4 p-5">
+    <div className="h-full overflow-auto px-6 pb-8">
+      <div className="flex w-full flex-col gap-4 pt-6">
+        <section className="card sticky top-0 z-10 flex flex-wrap items-center gap-4 p-6">
           <div>
             <p className="eyebrow">Ready to clear</p>
-            <p className="num text-3xl font-semibold text-accent">
+            <p className="num mt-1 font-display text-4xl font-semibold tracking-tight text-accent-ink">
               {formatBytes(summary.selected_bytes)}
             </p>
-            <p className="num text-xs text-muted">
+            <p className="num mt-1 text-xs text-muted">
               {formatCount(summary.selected_items)} of {formatCount(foundItems)} items selected ·{' '}
               {formatBytes(found)} found
             </p>
@@ -286,6 +373,7 @@ export default function Cleanup() {
               {formatCount(summary.selected_items)} items…
             </button>
           </div>
+          <SelectionBar categories={summary.categories} found={found} />
           {summary.running_selected.length > 0 && (
             <p className="flex w-full items-center gap-1.5 text-xs text-warn">
               <Icon name="warning" size={12} /> Some selected items belong to apps that are open (
@@ -300,11 +388,7 @@ export default function Cleanup() {
           </p>
         )}
 
-        <p className="flex items-start gap-2 text-muted">
-          <Icon name="shield" size={14} className="mt-0.5 shrink-0 text-accent" />
-          Only items marked Safe are selected for you. Review first means it does not come back on
-          its own, so look before you tick it. Everything goes to the Trash, and you can undo.
-        </p>
+        <RiskLegend />
 
         <ul className="flex flex-col gap-3" aria-label="Cleanup categories">
           {summary.categories.map((c) => (

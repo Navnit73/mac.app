@@ -1,35 +1,43 @@
 @import 'tailwindcss';
 
 /*
- * Design tokens. Neutrals are warm grays; the accent and the eight data hues come from a
- * validated categorical palette (adjacent colorblind-safe, dark steps chosen separately).
- * Color is never the only signal: every colored mark has a text label next to it.
+ * Design tokens. Neutral grays, white surfaces and a black sidebar; lime-600 / lime-700 is
+ * the brand accent. No shadows anywhere: depth comes from surfaces and 1px borders.
+ *
+ * Lime and text: lime buttons carry white semibold text (lime-600 at rest, lime-700 on hover,
+ * the user's choice; white on lime-600 is 3.1:1, on lime-700 5.0:1). Accent text on white
+ * uses lime-700 (5.0:1); lime-600 alone is for fills, markers and focus rings.
+ *
+ * Charts never use the brand lime. Data colors (--s1..--s8) are the validated categorical
+ * palette (adjacent colorblind-safe on white); every colored mark has a text label next to it.
  */
 :root {
   color-scheme: light;
-  --bg: #f3f2ef;
-  --panel: #fcfcfb;
-  --sidebar: #ebeae6;
+  --bg: #fafafa;
+  --panel: #ffffff;
+  --sidebar: #0a0a0a;
   --raised: #ffffff;
-  --fg: #1a1a19;
-  --muted: #5d5c57;
-  --faint: #8b8a84;
-  --line: rgba(26, 26, 25, 0.11);
-  --line-strong: rgba(26, 26, 25, 0.2);
-  --hover: rgba(26, 26, 25, 0.055);
-  --accent: #2a78d6;
+  --fg: #0a0a0a;
+  --muted: #525252;
+  --faint: #737373;
+  --line: #e7e7e7;
+  --line-strong: #d4d4d4;
+  --hover: rgba(10, 10, 10, 0.04);
+  --accent: #65a30d;
+  --accent-hover: #4d7c0f;
+  --accent-ink: #4d7c0f;
   --accent-fg: #ffffff;
-  --accent-soft: rgba(42, 120, 214, 0.12);
-  --selected: rgba(42, 120, 214, 0.14);
-  --kept: #d6d5cf;
-  --track: #e4e3de;
-  --ok: #17794a;
-  --ok-soft: rgba(23, 121, 74, 0.12);
-  --warn: #9a5b00;
-  --warn-soft: rgba(237, 161, 0, 0.18);
-  --bad: #c0302f;
-  --bad-soft: rgba(227, 73, 72, 0.13);
-  --shadow: 0 1px 2px rgba(26, 26, 25, 0.06), 0 4px 14px rgba(26, 26, 25, 0.06);
+  --accent-soft: #ecfccb;
+  --selected: #f7fee7;
+  --kept: #e5e5e5;
+  --track: #f1f1f1;
+  --ok: #3f6212;
+  --ok-soft: #ecfccb;
+  --warn: #92400e;
+  --warn-soft: #fef3c7;
+  --bad: #b91c1c;
+  --bad-soft: #fee2e2;
+  --shadow: none;
 
   --s1: #2a78d6;
   --s2: #eb6834;
@@ -39,37 +47,38 @@
   --s6: #008300;
   --s7: #6250d6;
   --s8: #e34948;
-  --folder: #a9a8a1;
-  --other: #c9c8c2;
+  --folder: #a3a3a3;
+  --other: #d4d4d4;
 }
 
 /* Light is the default, whatever the macOS appearance. Dark is opt-in via data-theme. */
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #121211;
-  --panel: #1a1a19;
-  --sidebar: #151514;
-  --raised: #222221;
-  --fg: #f0efec;
-  --muted: #b1b0a6;
-  --faint: #7f7e76;
-  --line: rgba(240, 239, 236, 0.11);
-  --line-strong: rgba(240, 239, 236, 0.22);
-  --hover: rgba(240, 239, 236, 0.07);
-  --accent: #3987e5;
-  --accent-fg: #0b0b0b;
-  --accent-soft: rgba(57, 135, 229, 0.18);
-  --selected: rgba(57, 135, 229, 0.24);
-  --kept: #3a3a37;
-  --track: #262625;
-  --ok: #4fd08d;
-  --ok-soft: rgba(79, 208, 141, 0.14);
-  --warn: #f0b429;
-  --warn-soft: rgba(240, 180, 41, 0.16);
-  --bad: #ff7b78;
-  --bad-soft: rgba(255, 123, 120, 0.16);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 6px 18px rgba(0, 0, 0, 0.35);
+  --bg: #0a0a0a;
+  --panel: #141414;
+  --sidebar: #000000;
+  --raised: #1c1c1c;
+  --fg: #fafafa;
+  --muted: #a3a3a3;
+  --faint: #8a8a8a;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-strong: rgba(255, 255, 255, 0.18);
+  --hover: rgba(255, 255, 255, 0.06);
+  --accent: #65a30d;
+  --accent-hover: #4d7c0f;
+  --accent-ink: #a3e635;
+  --accent-fg: #ffffff;
+  --accent-soft: rgba(132, 204, 22, 0.16);
+  --selected: rgba(132, 204, 22, 0.1);
+  --kept: #2e2e2e;
+  --track: #232323;
+  --ok: #a3e635;
+  --ok-soft: rgba(132, 204, 22, 0.14);
+  --warn: #fbbf24;
+  --warn-soft: rgba(251, 191, 36, 0.14);
+  --bad: #f87171;
+  --bad-soft: rgba(248, 113, 113, 0.14);
 
   --s1: #3987e5;
   --s2: #d95926;
@@ -79,8 +88,20 @@
   --s6: #008300;
   --s7: #9085e9;
   --s8: #e66767;
-  --folder: #6a6963;
-  --other: #4a4944;
+  --folder: #737373;
+  --other: #404040;
+}
+
+/* The black sidebar: the same tokens, re-stepped for a black surface. */
+.surface-black {
+  --fg: #fafafa;
+  --muted: #a3a3a3;
+  --faint: #8a8a8a;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --hover: rgba(255, 255, 255, 0.06);
+  --selected: rgba(255, 255, 255, 0.09);
+  color: var(--fg);
 }
 
 @theme inline {
@@ -95,6 +116,8 @@
   --color-line-strong: var(--line-strong);
   --color-hover: var(--hover);
   --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
   --color-accent-fg: var(--accent-fg);
   --color-accent-soft: var(--accent-soft);
   --color-selected: var(--selected);
@@ -107,6 +130,7 @@
   --color-bad: var(--bad);
   --color-bad-soft: var(--bad-soft);
   --font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif;
   --font-mono: ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
@@ -123,19 +147,90 @@ body {
   font-family: var(--font-sans);
   font-size: 13px;
   line-height: 1.45;
+  letter-spacing: -0.003em;
   -webkit-font-smoothing: antialiased;
   user-select: none;
   cursor: default;
 }
 
-.num {
-  font-variant-numeric: tabular-nums;
+/* Everything clickable shows the pointing hand; disabled controls say they are unavailable. */
+button,
+a[href],
+select,
+summary,
+label:has(> input[type='checkbox']),
+label:has(> input[type='radio']),
+input[type='checkbox'],
+input[type='radio'],
+[role='button'],
+[role='tab'],
+[role='option'],
+[role='menuitem'] {
+  cursor: pointer;
+}
+button:disabled,
+select:disabled,
+input:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
 }
 
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
+/* No shadow anywhere, including Tailwind's shadow utilities and native controls. */
+*,
+*::before,
+*::after {
+  box-shadow: none !important;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+@layer base {
+  /* In the base layer so a component's own focus style can replace it. */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+input[type='checkbox'],
+input[type='radio'] {
+  accent-color: var(--accent);
+}
+
+/* Text fields: one lime border and a soft lime halo (an outline, not a shadow). */
+input[type='search'],
+input[type='text'],
+input:not([type]) {
+  transition:
+    border-color 0.12s,
+    outline-color 0.12s;
+}
+input[type='search']:focus,
+input[type='text']:focus,
+input:not([type]):focus {
+  border-color: var(--accent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  outline-offset: 0;
+}
+input[aria-invalid='true'],
+input[aria-invalid='true']:focus {
+  border-color: var(--bad);
+  outline-color: color-mix(in srgb, var(--bad) 18%, transparent);
 }
 
 ::-webkit-scrollbar {
@@ -161,89 +256,129 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 28px;
+    height: 30px;
     padding: 0 12px;
-    border-radius: 7px;
+    border-radius: 8px;
     border: 1px solid var(--line-strong);
     background: var(--raised);
     color: var(--fg);
     font-weight: 500;
-    transition: background 0.12s;
+    transition:
+      background 0.12s,
+      border-color 0.12s,
+      color 0.12s;
     white-space: nowrap;
   }
   .btn:hover:not(:disabled) {
     background: var(--hover);
+    border-color: var(--faint);
   }
   .btn:disabled {
-    opacity: 0.5;
+    opacity: 0.45;
   }
+  /* Lime-600 with white text; only the fill darkens to lime-700 on hover. */
   .btn-primary {
     background: var(--accent);
-    border-color: transparent;
+    border-color: var(--accent);
     color: var(--accent-fg);
+    font-weight: 600;
   }
   .btn-primary:hover:not(:disabled) {
-    background: var(--accent);
-    filter: brightness(1.08);
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
   }
-  /* Destructive: same deep red in both modes so white text stays readable (5.4:1). */
-  .btn-danger {
-    background: #c0302f;
-    border-color: transparent;
+  /* Black, for strong secondary actions on white. */
+  .btn-dark {
+    background: #0a0a0a;
+    border-color: #0a0a0a;
     color: #ffffff;
   }
+  .btn-dark:hover:not(:disabled) {
+    background: #262626;
+    border-color: #262626;
+  }
+  /* Destructive: the same deep red in both modes so white text stays readable. */
+  .btn-danger {
+    background: #b91c1c;
+    border-color: #b91c1c;
+    color: #ffffff;
+    font-weight: 600;
+  }
   .btn-danger:hover:not(:disabled) {
-    background: #a82827;
+    background: #991b1b;
+    border-color: #991b1b;
   }
   .btn-lg {
-    height: 36px;
-    padding: 0 18px;
+    height: 40px;
+    padding: 0 20px;
     font-size: 14px;
-    border-radius: 9px;
+    border-radius: 10px;
   }
   .btn-ghost {
     border-color: transparent;
     background: transparent;
   }
+  .btn-ghost:hover:not(:disabled) {
+    border-color: transparent;
+  }
   .card {
     background: var(--panel);
     border: 1px solid var(--line);
-    border-radius: 12px;
-    box-shadow: var(--shadow);
+    border-radius: 14px;
+  }
+  /* A card that is also a button or link. */
+  .card-link {
+    transition:
+      border-color 0.15s,
+      background 0.15s;
+  }
+  .card-link:hover {
+    border-color: var(--fg);
   }
   .seg {
     display: inline-flex;
     padding: 2px;
     gap: 2px;
     background: var(--track);
-    border-radius: 8px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
   }
   .seg button {
     height: 24px;
     padding: 0 12px;
-    border-radius: 6px;
+    border-radius: 7px;
+    border: 1px solid transparent;
     color: var(--muted);
     font-weight: 500;
   }
+  .seg button:hover:not([aria-pressed='true']) {
+    color: var(--fg);
+  }
   .seg button[aria-pressed='true'] {
     background: var(--raised);
+    border-color: var(--line-strong);
     color: var(--fg);
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
   }
   .chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 24px;
-    padding: 0 10px;
+    height: 26px;
+    padding: 0 11px;
     border-radius: 999px;
     border: 1px solid var(--line-strong);
     color: var(--muted);
+    transition:
+      border-color 0.12s,
+      color 0.12s;
+  }
+  .chip:hover {
+    color: var(--fg);
   }
   .chip[aria-pressed='true'] {
-    background: var(--accent-soft);
-    border-color: var(--accent);
-    color: var(--fg);
+    background: var(--fg);
+    border-color: var(--fg);
+    color: var(--panel);
   }
   .badge {
     display: inline-flex;
@@ -251,7 +386,7 @@ body {
     gap: 4px;
     height: 20px;
     padding: 0 8px;
-    border-radius: 999px;
+    border-radius: 6px;
     font-size: 11px;
     font-weight: 600;
   }
@@ -270,7 +405,7 @@ body {
   .eyebrow {
     font-size: 11px;
     font-weight: 600;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: var(--faint);
   }

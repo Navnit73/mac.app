@@ -70,6 +70,8 @@ pub fn run() {
             scan::search,
             views::get_fda_status,
             views::open_fda_settings,
+            views::get_fda_target,
+            views::reveal_fda_target,
             views::get_overview,
             views::get_children,
             views::get_top_files,

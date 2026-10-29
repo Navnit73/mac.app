@@ -174,6 +174,19 @@ pub enum FdaStatus {
     Unknown,
 }
 
+/// The app macOS checks for Full Disk Access: DuoBolt itself when it runs as an app, or the app
+/// that started it (Terminal, an editor) while developing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct FdaTarget {
+    /// Display name, like "DuoBolt" or "Visual Studio Code".
+    pub name: String,
+    /// The `.app` bundle to add in System Settings.
+    pub path: String,
+    /// False when another app hosts DuoBolt, so access must be given to that app.
+    pub is_self: bool,
+}
+
 /// Capacity of a volume.
 #[derive(Debug, Clone, Serialize, TS)]
 #[ts(export)]

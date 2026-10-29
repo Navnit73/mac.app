@@ -19,18 +19,24 @@ export default function CategoryCard({ c }: { c: CategorySummary }) {
     <button
       type="button"
       onClick={() => navigate(CATEGORY_ROUTE[c.id])}
-      className={`card flex flex-col gap-2 p-4 text-left transition-shadow hover:shadow-lg ${dim ? 'opacity-60' : ''}`}
+      className={`group card card-link flex flex-col gap-2 p-5 text-left ${dim ? 'opacity-60' : ''}`}
     >
       <div className="flex items-center gap-2">
         <span
-          className="h-3 w-3 rounded-[4px]"
+          className="h-2.5 w-2.5 rounded-full"
           style={{ background: CATEGORY_COLOR[c.id] }}
           aria-hidden="true"
         />
         <span className="font-semibold">{c.name}</span>
-        <Icon name="chevron" size={14} className="ml-auto text-faint" />
+        <Icon
+          name="chevron"
+          size={14}
+          className="ml-auto text-faint transition-colors group-hover:text-fg"
+        />
       </div>
-      <div className="num text-2xl font-semibold">{c.analyzed ? formatBytes(c.bytes) : '—'}</div>
+      <div className="num mt-1 font-display text-[26px] font-semibold tracking-tight">
+        {c.analyzed ? formatBytes(c.bytes) : '—'}
+      </div>
       <p className="text-muted">{c.blurb}</p>
       <div className="mt-auto flex items-center gap-2 pt-1">
         {c.analyzed ? (

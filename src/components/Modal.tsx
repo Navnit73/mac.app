@@ -33,7 +33,7 @@ export default function Modal({
         e.preventDefault()
         onClose()
       }}
-      className="m-auto max-w-[92vw] rounded-2xl border border-line bg-panel p-0 text-fg shadow-2xl backdrop:bg-black/40"
+      className="m-auto max-w-[92vw] rounded-2xl border border-line bg-panel p-0 text-fg backdrop:bg-neutral-950/50 backdrop:backdrop-blur-[2px]"
       style={{ width }}
     >
       {open && children}

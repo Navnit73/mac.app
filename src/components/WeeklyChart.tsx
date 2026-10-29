@@ -93,7 +93,7 @@ export default function WeeklyChart({ weeks }: { weeks: WeekStat[] }) {
       {tip && hover !== null && (
         <div
           role="tooltip"
-          className="pointer-events-none absolute top-0 rounded-lg border border-line bg-raised px-3 py-2 shadow-xl"
+          className="pointer-events-none absolute top-0 rounded-lg border border-line-strong bg-raised px-3 py-2"
           style={{
             left: `${((PAD.left + hover * slot + slot / 2) / W) * 100}%`,
             transform: 'translateX(-50%)',

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { formatBytes } from '../../lib/format'
 import type { ColorBy } from '../../state/spaceStore'
 import type { ChartNode } from '../../types/bindings/ChartNode'
-import { nodeColor, sumDepth } from './chartColor'
+import { branchHues, nodeColor, ringColor, sumDepth } from './chartColor'
 import ChartTooltip, { type TooltipState } from './ChartTooltip'
 
 const SIZE = 640
@@ -72,6 +72,7 @@ interface Props {
 export default function Sunburst({ root, colorBy, selectedId, onZoom, onSelect, onUp }: Props) {
   const rings = Math.max(1, sumDepth(root) - 1)
   const arcs = useMemo(() => layout(root, rings), [root, rings])
+  const hues = useMemo(() => branchHues(root), [root])
   const [tip, setTip] = useState<TooltipState | null>(null)
   const [hover, setHover] = useState<ChartNode | null>(null)
 
@@ -97,7 +98,11 @@ export default function Sunburst({ root, colorBy, selectedId, onZoom, onSelect, 
               key={`${a.node.id ?? 'other'}-${i}`}
               d={a.path}
               fillRule="evenodd"
-              fill={nodeColor(a.node, colorBy)}
+              fill={
+                colorBy === 'folder' && a.node.id !== null
+                  ? ringColor(hues.get(a.node) ?? 'var(--folder)', a.depth)
+                  : nodeColor(a.node, colorBy)
+              }
               stroke={selected ? 'var(--fg)' : 'var(--panel)'}
               strokeWidth={selected ? 2.5 : 1.5}
               opacity={hover && hover !== a.node ? 0.55 : 1}

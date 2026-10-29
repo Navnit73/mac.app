@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 export type SpaceView = 'list' | 'sunburst' | 'treemap'
 export type SpaceTab = 'folders' | 'large'
-export type ColorBy = 'kind' | 'age'
+export type ColorBy = 'folder' | 'kind' | 'age'
 
 interface SpaceStore {
   view: SpaceView
@@ -28,7 +28,7 @@ interface SpaceStore {
 export const useSpaceStore = create<SpaceStore>((set, get) => ({
   view: 'list',
   tab: 'folders',
-  colorBy: 'kind',
+  colorBy: 'folder',
   currentId: null,
   back: [],
   forward: [],

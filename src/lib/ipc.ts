@@ -22,6 +22,7 @@ import type { DupStatus } from '../types/bindings/DupStatus'
 import type { FileKind } from '../types/bindings/FileKind'
 import type { KeepRule } from '../types/bindings/KeepRule'
 import type { FdaStatus } from '../types/bindings/FdaStatus'
+import type { FdaTarget } from '../types/bindings/FdaTarget'
 import type { NodeDetails } from '../types/bindings/NodeDetails'
 import type { OverviewSummary } from '../types/bindings/OverviewSummary'
 import type { SmartGroupSummary } from '../types/bindings/SmartGroupSummary'
@@ -83,6 +84,8 @@ export const commands = {
   clearActivity: () => invoke<void>('clear_activity'),
   getFdaStatus: () => invoke<FdaStatus>('get_fda_status'),
   openFdaSettings: () => invoke<void>('open_fda_settings'),
+  getFdaTarget: () => invoke<FdaTarget | null>('get_fda_target'),
+  revealFdaTarget: () => invoke<void>('reveal_fda_target'),
   getOverview: (id: number) => invoke<OverviewSummary>('get_overview', { id }),
   getChildren: (id: number, nodeId: number, sort: SortKey, descending: boolean, cursor: number) =>
     invoke<ChildrenPage>('get_children', { id, nodeId, sort, descending, cursor }),

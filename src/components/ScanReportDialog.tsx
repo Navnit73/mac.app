@@ -62,7 +62,7 @@ export default function ScanReportDialog({ scanId, open, onClose }: Props) {
     <dialog
       ref={ref}
       onClose={onClose}
-      className="m-auto w-[720px] max-w-[92vw] rounded-2xl border border-line bg-panel p-0 text-fg shadow-2xl backdrop:bg-black/40"
+      className="m-auto w-[720px] max-w-[92vw] rounded-2xl border border-line bg-panel p-0 text-fg backdrop:bg-neutral-950/50 backdrop:backdrop-blur-[2px]"
     >
       <div className="flex items-center justify-between border-b border-line px-5 py-4">
         <div>

@@ -17,25 +17,38 @@ import type { OverviewSummary } from '../types/bindings/OverviewSummary'
 
 function Welcome() {
   return (
-    <section className="mx-auto flex max-w-xl flex-col items-center gap-5 px-6 py-20 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent-soft text-accent">
-        <Icon name="overview" size={30} />
+    <section className="mx-auto flex max-w-2xl flex-col items-center gap-6 px-6 py-20 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-fg text-accent">
+        <Icon name="bolt" size={30} strokeWidth={2} />
       </div>
-      <h1 className="text-3xl font-semibold tracking-tight">See what is filling your Mac</h1>
-      <p className="text-base text-muted">
-        One scan explains your storage and shows what you can safely clear. Everything stays on this
-        Mac.
-      </p>
+      <div className="flex flex-col gap-3">
+        <h1 className="text-4xl font-semibold tracking-tight">See what is filling your Mac</h1>
+        <p className="mx-auto max-w-lg text-[15px] text-muted">
+          One scan explains your storage and shows what you can safely clear. Everything stays on
+          this Mac.
+        </p>
+      </div>
       <ScanButton large />
-      <ul className="mt-4 grid gap-3 text-left sm:grid-cols-3">
-        {[
-          ['Nothing is deleted', 'Cleanups go to the Trash first, and you can undo them.'],
-          ['You review everything', 'See each item and its size before anything moves.'],
-          ['Private by design', 'No uploads, no accounts, no tracking.'],
-        ].map(([t, d]) => (
-          <li key={t} className="card p-4">
-            <p className="font-semibold">{t}</p>
-            <p className="mt-1 text-muted">{d}</p>
+      <ul className="mt-6 grid w-full gap-3 text-left sm:grid-cols-3">
+        {(
+          [
+            [
+              'trash',
+              'Nothing is deleted',
+              'Cleanups go to the Trash first, and you can undo them.',
+            ],
+            ['eye', 'You review everything', 'See each item and its size before anything moves.'],
+            ['shield', 'Private by design', 'No uploads, no accounts, no tracking.'],
+          ] as const
+        ).map(([icon, t, d]) => (
+          <li key={t} className="card flex flex-col gap-3 p-5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-soft text-accent-ink">
+              <Icon name={icon} size={16} />
+            </span>
+            <div>
+              <p className="font-semibold">{t}</p>
+              <p className="mt-1 text-muted">{d}</p>
+            </div>
           </li>
         ))}
       </ul>
@@ -55,9 +68,9 @@ function InfoCard({
   action?: { text: string; onClick: () => void; disabled?: boolean; title?: string }
 }) {
   return (
-    <div className="card flex flex-col gap-1 p-4">
+    <div className="card flex flex-col gap-1 p-5">
       <span className="eyebrow">{label}</span>
-      <span className="num text-xl font-semibold">{value}</span>
+      <span className="num mt-1 text-2xl font-semibold tracking-tight">{value}</span>
       {sub && <span className="text-muted">{sub}</span>}
       {action && (
         <button
@@ -101,19 +114,19 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
   const used = o.volume.total - o.volume.available_important
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-6 p-8">
+    <div className="flex w-full flex-col gap-8 p-8">
       {partial && (
         <p className="rounded-lg bg-warn-soft px-4 py-2 text-warn">
           This scan was cancelled, so the numbers below are partial.
         </p>
       )}
 
-      <section className="card p-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
+      <section className="card p-7">
+        <div className="flex flex-wrap items-stretch justify-between gap-6">
+          <div className="flex flex-col justify-center">
             <p className="eyebrow">{o.volume.name}</p>
-            <p className="mt-1 flex items-baseline gap-2">
-              <span className="num text-4xl font-semibold tracking-tight">
+            <p className="mt-2 flex items-baseline gap-2.5">
+              <span className="num font-display text-5xl font-semibold tracking-tight">
                 {formatBytes(o.volume.available_important)}
               </span>
               <span className="text-base text-muted">free of {formatBytes(o.volume.total)}</span>
@@ -128,12 +141,14 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
               )}
             </p>
           </div>
-          <div className="text-right">
-            <p className="eyebrow">You could clear</p>
-            <p className="num mt-1 text-3xl font-semibold text-accent">{formatBytes(clearable)}</p>
+          <div className="flex min-w-60 flex-col items-start justify-center rounded-xl border border-accent/30 bg-selected px-5 py-4">
+            <p className="eyebrow !text-accent-ink">You could clear</p>
+            <p className="num mt-1 font-display text-3xl font-semibold tracking-tight text-accent-ink">
+              {formatBytes(clearable)}
+            </p>
             <button
               type="button"
-              className="btn btn-primary mt-2"
+              className="btn btn-primary mt-3"
               title="Review the safe items, then move them to the Trash"
               onClick={() => {
                 navigate('/cleanup')
@@ -148,7 +163,7 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
             </button>
           </div>
         </div>
-        <div className="mt-6">
+        <div className="mt-7">
           <StorageBar overview={o} />
         </div>
         {!o.covers_volume && (
@@ -163,8 +178,11 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
       </section>
 
       <section>
-        <h2 className="mb-3 text-base font-semibold">What you can clear</h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mb-3 flex items-baseline justify-between gap-4">
+          <h2 className="text-lg font-semibold">What you can clear</h2>
+          <p className="text-muted">Grouped by how safe each kind is to remove</p>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {o.categories.map((c) => (
             <CategoryCard key={c.id} c={c} />
           ))}
@@ -231,7 +249,7 @@ export default function Overview() {
   if (phase === 'idle') return <Welcome />
   if (phase === 'running' || phase === 'failed') {
     return (
-      <div className="mx-auto max-w-3xl p-8">
+      <div className="w-full p-8">
         <ProgressPanel />
         {phase === 'failed' && (
           <div className="mt-4">

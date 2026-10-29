@@ -21,9 +21,16 @@ export default function Toolbar() {
       data-tauri-drag-region
       className="flex h-[52px] shrink-0 items-center gap-3 border-b border-line bg-panel px-5"
     >
-      <h1 data-tauri-drag-region className="text-[15px] font-semibold">
-        {room?.label ?? 'Developer'}
-      </h1>
+      <div data-tauri-drag-region className="flex min-w-0 items-baseline gap-2.5">
+        <h1 data-tauri-drag-region className="text-[17px] font-semibold">
+          {room?.label ?? 'Developer'}
+        </h1>
+        {room && (
+          <span data-tauri-drag-region className="hidden truncate text-muted lg:inline">
+            {room.blurb}
+          </span>
+        )}
+      </div>
       {phase === 'running' && (
         <span className="num text-muted" aria-live="polite">
           Scanning… {formatCount(progress?.files ?? 0)} files
@@ -47,7 +54,7 @@ export default function Toolbar() {
               }}
               onFocus={() => findText && navigate('/find')}
               placeholder="Search  ⌘F"
-              className="h-7 w-56 rounded-lg border border-line bg-bg pr-2 pl-7 placeholder:text-faint"
+              className="h-[30px] w-60 rounded-lg border border-line bg-bg pr-2 pl-7 placeholder:text-faint"
             />
           </label>
         )}

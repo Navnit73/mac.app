@@ -24,7 +24,7 @@ export default function ChartTooltip({
   return (
     <div
       role="tooltip"
-      className="pointer-events-none absolute z-20 w-56 rounded-lg border border-line bg-raised p-3 shadow-xl"
+      className="pointer-events-none absolute z-20 w-56 rounded-lg border border-line-strong bg-raised p-3"
       style={{ left: flip ? tip.x - 236 : tip.x + 14, top: tip.y + 14 }}
     >
       <p className="truncate font-semibold">{node.name}</p>

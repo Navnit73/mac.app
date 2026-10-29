@@ -20,7 +20,7 @@ export default function StatusFooter() {
           : `${phase === 'cancelled' ? 'Partial scan' : 'Scanned'}: ${formatCount(summary?.files ?? 0)} files, ${formatBytes(summary?.total_alloc ?? 0)} in ${formatDuration(summary?.elapsed_ms ?? 0)}`
 
   return (
-    <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-sidebar px-4 text-xs text-muted">
+    <footer className="flex h-7 shrink-0 items-center gap-4 border-t border-line bg-panel px-4 text-xs text-muted">
       <span className="num">{scan}</span>
       <button
         type="button"
@@ -30,7 +30,11 @@ export default function StatusFooter() {
           fda === 'Denied' ? 'Click to open System Settings' : 'DuoBolt can read protected folders'
         }
       >
-        <Icon name={fda === 'Granted' ? 'check' : 'shield'} size={12} />
+        <Icon
+          name={fda === 'Granted' ? 'check' : 'shield'}
+          size={12}
+          className={fda === 'Granted' ? 'text-ok' : fda === 'Denied' ? 'text-warn' : ''}
+        />
         {fda === 'Granted' && 'Full Disk Access on'}
         {fda === 'Denied' && 'Full Disk Access off'}
         {(fda === 'Unknown' || fda === 'checking') && 'Full Disk Access unknown'}

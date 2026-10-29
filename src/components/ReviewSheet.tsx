@@ -41,7 +41,7 @@ export default function ReviewSheet() {
           </p>
           {review?.note && (
             <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-accent-soft px-3 py-2">
-              <Icon name="shield" size={13} className="mt-0.5 shrink-0 text-accent" />
+              <Icon name="shield" size={13} className="mt-0.5 shrink-0 text-accent-ink" />
               {review.note}
             </p>
           )}

@@ -96,7 +96,7 @@ function Options() {
     })
 
   return (
-    <section className="card mx-auto flex max-w-3xl flex-col gap-5 p-6">
+    <section className="card flex w-full flex-col gap-5 p-6">
       <div>
         <h2 className="text-lg font-semibold">Find files that exist twice</h2>
         <p className="mt-1 text-muted">
@@ -163,8 +163,9 @@ function Options() {
           </button>
         ))}
       </div>
-      <div className="flex flex-col gap-2 rounded-xl bg-track p-3">
-        <label className="flex items-start gap-2">
+      {/* Two option tiles side by side on wide windows. */}
+      <div className="grid gap-3 lg:grid-cols-2">
+        <label className="flex items-start gap-2.5 rounded-xl border border-line bg-bg p-4">
           <input
             type="checkbox"
             className="mt-1"
@@ -179,7 +180,7 @@ function Options() {
             </span>
           </span>
         </label>
-        <label className="flex items-start gap-2">
+        <label className="flex items-start gap-2.5 rounded-xl border border-line bg-bg p-4">
           <input
             type="checkbox"
             className="mt-1"
@@ -215,7 +216,7 @@ function Progress() {
   const current = STAGES.findIndex((s) => s.stage === (p?.stage ?? 'Grouping'))
   const pct = p && p.bytes_total > 0 ? Math.min(1, p.bytes_done / p.bytes_total) : 0
   return (
-    <section className="card mx-auto flex max-w-3xl flex-col gap-5 p-6" aria-live="polite">
+    <section className="card flex w-full flex-col gap-5 p-6" aria-live="polite">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Looking for duplicates…</h2>
         <button type="button" className="btn" onClick={() => void cancel()}>
@@ -514,7 +515,7 @@ function Results({ scanId }: { scanId: number }) {
   if (!summary) return null
   if (summary.groups === 0 || (groups.length === 0 && kind === null && total === 0)) {
     return (
-      <section className="card mx-auto flex max-w-3xl flex-col items-center gap-3 p-10 text-center">
+      <section className="card flex w-full flex-col items-center gap-3 p-10 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-ok-soft text-ok">
           <Icon name="check" size={22} />
         </div>
@@ -531,11 +532,11 @@ function Results({ scanId }: { scanId: number }) {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <section className="card sticky top-0 z-10 flex flex-wrap items-center gap-4 p-5">
         <div>
           <p className="eyebrow">Reclaimable</p>
-          <p className="num text-3xl font-semibold text-accent">{formatBytes(savings.bytes)}</p>
+          <p className="num text-3xl font-semibold text-accent-ink">{formatBytes(savings.bytes)}</p>
           <p className="num text-xs text-muted">
             {formatCount(savings.files)} copies selected in {formatCount(savings.groups)} groups ·
             up to {formatBytes(potential)} possible
@@ -589,14 +590,14 @@ function Results({ scanId }: { scanId: number }) {
           <span className="ml-auto flex gap-3 text-xs">
             <button
               type="button"
-              className="text-accent hover:underline"
+              className="text-accent-ink hover:underline"
               disabled={savings.files === 0}
               onClick={() => setCloneAsk(true)}
               title="Advanced: keep every path working while freeing the space"
             >
               Replace with clones instead…
             </button>
-            <button type="button" className="text-accent hover:underline" onClick={resetPhase}>
+            <button type="button" className="text-accent-ink hover:underline" onClick={resetPhase}>
               New duplicate scan
             </button>
           </span>
@@ -702,7 +703,7 @@ export default function Duplicates() {
   if (!ready) {
     return (
       <section className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
           <Icon name="duplicates" size={26} />
         </div>
         <h1 className="text-2xl font-semibold">

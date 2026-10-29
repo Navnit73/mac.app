@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { KIND_LABEL } from '../lib/colors'
+import { KIND_COLOR, KIND_LABEL } from '../lib/colors'
 import { formatAge, formatBytes, formatCount, formatDate } from '../lib/format'
 import { commands, describeError } from '../lib/ipc'
 import { useScanStore } from '../state/scanStore'
@@ -7,7 +7,6 @@ import { useSpaceStore } from '../state/spaceStore'
 import { useTrashStore } from '../state/trashStore'
 import type { NodeDetails } from '../types/bindings/NodeDetails'
 import Icon from './Icon'
-import EntryIcon from './space/EntryIcon'
 
 function Row({ label, value, title }: { label: string; value: React.ReactNode; title?: string }) {
   return (
@@ -17,6 +16,22 @@ function Row({ label, value, title }: { label: string; value: React.ReactNode; t
         {value}
       </dd>
     </div>
+  )
+}
+
+/** Folders and packages wear the brand lime; files their kind's chart color. */
+function KindTile({ d }: { d: NodeDetails }) {
+  const dir = d.kind === 'Dir'
+  const color = KIND_COLOR[d.file_kind]
+  return (
+    <span
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${dir ? 'bg-accent-soft text-accent-ink' : ''}`}
+      style={
+        dir ? undefined : { background: `color-mix(in srgb, ${color} 18%, transparent)`, color }
+      }
+    >
+      <Icon name={d.is_package ? 'package' : dir ? 'folder' : 'file'} size={20} />
+    </span>
   )
 }
 
@@ -76,19 +91,27 @@ function InspectorBody({ scanId, nodeId }: { scanId: number; nodeId: number }) {
       {d && (
         <div className="flex flex-col gap-4 p-4 pt-2">
           <header className="flex items-start gap-3">
-            <EntryIcon kind={d.file_kind} isDir={d.kind === 'Dir'} isPackage={d.is_package} />
-            <div className="min-w-0">
+            <KindTile d={d} />
+            <div className="min-w-0 pt-0.5">
               <h2 className="select-text break-words text-[15px] font-semibold leading-tight">
                 {d.name}
               </h2>
               <p className="text-muted">
-                {d.is_package ? 'Package' : KIND_LABEL[d.file_kind]}
+                {d.is_package ? 'Package' : d.kind === 'Dir' ? 'Folder' : KIND_LABEL[d.file_kind]}
                 {d.is_hidden && ' · Hidden'}
               </p>
             </div>
           </header>
 
-          <p className="num text-3xl font-semibold tracking-tight">{formatBytes(d.total_alloc)}</p>
+          <div>
+            <p className="num font-display text-[34px] leading-none font-semibold tracking-tight">
+              {formatBytes(d.total_alloc)}
+            </p>
+            <p className="num mt-1.5 text-xs text-muted">
+              on disk
+              {d.kind === 'Dir' && ` · ${formatCount(d.file_count)} items inside`}
+            </p>
+          </div>
 
           {!d.exists && (
             <p className="rounded-lg bg-warn-soft px-3 py-2 text-warn">
@@ -103,7 +126,7 @@ function InspectorBody({ scanId, nodeId }: { scanId: number; nodeId: number }) {
           )}
           {d.why && (
             <p className="flex items-start gap-2 rounded-lg bg-accent-soft px-3 py-2">
-              <Icon name="info" size={14} className="mt-0.5 shrink-0 text-accent" />
+              <Icon name="info" size={14} className="mt-0.5 shrink-0 text-accent-ink" />
               {d.why}
             </p>
           )}
@@ -157,7 +180,7 @@ function InspectorBody({ scanId, nodeId }: { scanId: number; nodeId: number }) {
           </div>
           <button
             type="button"
-            className="btn justify-center"
+            className="btn justify-center border-bad/35 text-bad hover:!border-bad hover:!bg-bad-soft"
             disabled={!d.exists || d.protected_reason !== null}
             title={d.protected_reason ?? 'Review, then move to the Trash (⌘⌫)'}
             onClick={() => void useTrashStore.getState().openReview([d.id], 'Inspector')}
@@ -177,11 +200,14 @@ function InspectorBody({ scanId, nodeId }: { scanId: number; nodeId: number }) {
 
           <dl className="divide-y divide-line border-y border-line">
             <Row label="Size on disk" value={formatBytes(d.total_alloc)} />
-            <Row
-              label="Logical size"
-              value={formatBytes(d.size_logical)}
-              title="Bytes as apps see them. Can differ from size on disk for compressed or sparse files."
-            />
+            {/* Folders have no logical size of their own; only files report it. */}
+            {d.kind !== 'Dir' && (
+              <Row
+                label="Logical size"
+                value={formatBytes(d.size_logical)}
+                title="Bytes as apps see them. Can differ from size on disk for compressed or sparse files."
+              />
+            )}
             {d.kind === 'Dir' && <Row label="Items" value={formatCount(d.file_count)} />}
             <Row label="Modified" value={formatDate(d.modified)} title={formatAge(d.modified)} />
             <Row label="Created" value={formatDate(d.created)} />

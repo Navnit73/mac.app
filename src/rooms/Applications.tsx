@@ -364,7 +364,7 @@ export default function Applications() {
   if (!list) {
     return (
       <section className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
           <Icon name="applications" size={26} />
         </div>
         <h1 className="text-2xl font-semibold">
@@ -452,7 +452,7 @@ export default function Applications() {
               onClick={() => navigate('/cleanup')}
               className="flex items-center gap-3 rounded-lg bg-accent-soft px-3 py-2 text-left"
             >
-              <Icon name="info" size={14} className="text-accent" />
+              <Icon name="info" size={14} className="text-accent-ink" />
               <span className="flex-1">
                 <span className="font-medium">
                   {formatBytes(list.leftover_bytes)} left behind by apps you removed
@@ -541,7 +541,7 @@ export default function Applications() {
           {!scanning && (
             <button
               type="button"
-              className="ml-auto text-accent hover:underline"
+              className="ml-auto text-accent-ink hover:underline"
               onClick={() => void scan()}
             >
               Refresh

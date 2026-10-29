@@ -3,7 +3,7 @@ import { formatBytes } from '../../lib/format'
 import { squarify, type Rect } from '../../lib/squarify'
 import type { ColorBy } from '../../state/spaceStore'
 import type { ChartNode } from '../../types/bindings/ChartNode'
-import { nodeColor } from './chartColor'
+import { branchHues, nodeColor } from './chartColor'
 import ChartTooltip, { type TooltipState } from './ChartTooltip'
 
 const GAP = 2
@@ -79,6 +79,7 @@ export default function Treemap({ root, colorBy, selectedId, onZoom, onSelect }:
     [root, w, h],
   )
   const [tip, setTip] = useState<TooltipState | null>(null)
+  const hues = useMemo(() => branchHues(root), [root])
 
   const activate = (n: ChartNode) => {
     if (n.id === null) return
@@ -94,7 +95,9 @@ export default function Treemap({ root, colorBy, selectedId, onZoom, onSelect }:
       aria-label={`Treemap of ${root.name}`}
     >
       {tiles.map((t, i) => {
-        const color = nodeColor(t.node, colorBy)
+        const color = nodeColor(t.node, colorBy, hues)
+        // Folder mode tints containers with their branch hue too; kind and age keep them gray.
+        const box = colorBy === 'folder' && t.node.id !== null ? color : 'var(--folder)'
         const selected = t.node.id !== null && t.node.id === selectedId
         const showLabel = t.rect.w > 54 && t.rect.h > 26
         return (
@@ -114,11 +117,12 @@ export default function Treemap({ root, colorBy, selectedId, onZoom, onSelect }:
               top: t.rect.y,
               width: t.rect.w,
               height: t.rect.h,
+              // Light tints keep black labels readable on every hue.
               background: t.container
-                ? 'color-mix(in srgb, var(--folder) 14%, var(--panel))'
-                : `color-mix(in srgb, ${color} 34%, var(--panel))`,
-              border: `1px solid ${selected ? 'var(--fg)' : t.container ? 'var(--line-strong)' : `color-mix(in srgb, ${color} 70%, var(--panel))`}`,
-              boxShadow: selected ? '0 0 0 1px var(--fg)' : undefined,
+                ? `color-mix(in srgb, ${box} 10%, var(--panel))`
+                : `color-mix(in srgb, ${color} 30%, var(--panel))`,
+              border: `1px solid ${selected ? 'var(--fg)' : t.container ? `color-mix(in srgb, ${box} 38%, var(--panel))` : `color-mix(in srgb, ${color} 62%, var(--panel))`}`,
+              outline: selected ? '1px solid var(--fg)' : undefined,
               zIndex: t.depth,
             }}
           >

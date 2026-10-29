@@ -204,7 +204,7 @@ export default function Activity() {
   if (batches.length === 0) {
     return (
       <section className="flex h-full flex-col items-center justify-center gap-3 p-8 text-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-soft text-accent-ink">
           <Icon name="activity" size={26} />
         </div>
         <h1 className="text-2xl font-semibold">No cleanups yet</h1>

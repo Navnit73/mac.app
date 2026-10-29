@@ -4,8 +4,8 @@
 //! Everything here is read-only or opens a system UI; nothing removes files.
 
 use std::ffi::CString;
-use std::os::unix::ffi::OsStrExt;
-use std::path::Path;
+use std::os::unix::ffi::{OsStrExt, OsStringExt};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use objc2::rc::Retained;
@@ -17,7 +17,7 @@ use objc2_foundation::{
 };
 
 use crate::errors::AppError;
-use crate::models::{FdaStatus, VolumeInfo};
+use crate::models::{FdaStatus, FdaTarget, VolumeInfo};
 
 /// Capacity of the volume holding `path`.
 ///
@@ -85,6 +85,85 @@ pub fn full_disk_access(home: &Path) -> FdaStatus {
     } else {
         FdaStatus::Unknown
     }
+}
+
+/// Which app needs Full Disk Access for this process. macOS asks the "responsible" app: the
+/// `.app` DuoBolt runs from, or, for a bare binary (development), the first app bundle among
+/// its parent processes (the terminal or editor that launched it). `None` when neither is found.
+pub fn fda_target() -> Option<FdaTarget> {
+    let own = std::env::current_exe().ok().and_then(|p| outermost_app(&p));
+    if let Some(app) = own {
+        return Some(target_for(app, true));
+    }
+    // SAFETY: getpid has no preconditions.
+    let mut pid = unsafe { libc::getpid() };
+    // A parent chain is short; the bound only guards against a cycle.
+    for _ in 0..32 {
+        pid = parent_pid(pid)?;
+        if pid <= 1 {
+            return None;
+        }
+        if let Some(app) = pid_path(pid).and_then(|p| outermost_app(&p)) {
+            return Some(target_for(app, false));
+        }
+    }
+    None
+}
+
+fn target_for(app: PathBuf, is_self: bool) -> FdaTarget {
+    let name = plist::Value::from_file(app.join("Contents/Info.plist"))
+        .ok()
+        .and_then(|v| v.into_dictionary())
+        .and_then(|d| {
+            ["CFBundleDisplayName", "CFBundleName"]
+                .iter()
+                .find_map(|k| d.get(k)?.as_string().map(str::to_string))
+        })
+        .filter(|n| !n.is_empty())
+        .or_else(|| app.file_stem().map(|s| s.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| "DuoBolt".into());
+    FdaTarget {
+        name,
+        path: app.to_string_lossy().into_owned(),
+        is_self,
+    }
+}
+
+/// The outermost `.app` bundle containing `path` (helpers live inside their app's bundle).
+fn outermost_app(path: &Path) -> Option<PathBuf> {
+    path.ancestors()
+        .filter(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("app")))
+        .last()
+        .map(Path::to_path_buf)
+}
+
+fn parent_pid(pid: libc::pid_t) -> Option<libc::pid_t> {
+    // SAFETY: an all-zero proc_bsdinfo is a valid value of this plain C struct.
+    let mut info: libc::proc_bsdinfo = unsafe { std::mem::zeroed() };
+    let size = std::mem::size_of::<libc::proc_bsdinfo>() as libc::c_int;
+    // SAFETY: `info` is a writable buffer of exactly `size` bytes.
+    let n = unsafe {
+        libc::proc_pidinfo(
+            pid,
+            libc::PROC_PIDTBSDINFO,
+            0,
+            &mut info as *mut libc::proc_bsdinfo as *mut libc::c_void,
+            size,
+        )
+    };
+    (n == size).then_some(info.pbi_ppid as libc::pid_t)
+}
+
+fn pid_path(pid: libc::pid_t) -> Option<PathBuf> {
+    let mut buf = vec![0u8; libc::PROC_PIDPATHINFO_MAXSIZE as usize];
+    // SAFETY: `buf` is writable and its real length is passed.
+    let n =
+        unsafe { libc::proc_pidpath(pid, buf.as_mut_ptr() as *mut libc::c_void, buf.len() as u32) };
+    if n <= 0 {
+        return None;
+    }
+    buf.truncate(n as usize);
+    Some(PathBuf::from(std::ffi::OsString::from_vec(buf)))
 }
 
 /// Read an extended attribute holding a binary plist array of strings (tags, download URLs).
@@ -453,6 +532,31 @@ mod tests {
             Some(951_868_800)
         );
         assert_eq!(parse_mdls_date("(null)"), None);
+    }
+
+    #[test]
+    fn outermost_app_bundle_is_the_host() {
+        let p = Path::new(
+            "/Applications/Antigravity IDE.app/Contents/Frameworks/Antigravity IDE Helper.app/Contents/MacOS/Antigravity IDE Helper",
+        );
+        assert_eq!(
+            outermost_app(p),
+            Some(PathBuf::from("/Applications/Antigravity IDE.app"))
+        );
+        assert_eq!(
+            outermost_app(Path::new("/Users/me/target/debug/duobolt")),
+            None
+        );
+    }
+
+    #[test]
+    fn fda_target_finds_an_app_or_nothing() {
+        // Under `cargo test` the host is whatever launched cargo; it must be an .app or None.
+        if let Some(t) = fda_target() {
+            assert!(t.path.ends_with(".app"), "{t:?}");
+            assert!(!t.name.is_empty());
+            assert!(!t.is_self);
+        }
     }
 
     #[test]

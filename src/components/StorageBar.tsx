@@ -85,7 +85,8 @@ export default function StorageBar({ overview }: { overview: OverviewSummary }) 
             style={{
               width: `${(s.bytes / denom) * 100}%`,
               minWidth: 4,
-              boxShadow: s.key === 'free' ? 'inset 0 0 0 1px var(--line-strong)' : undefined,
+              outline: s.key === 'free' ? '1px solid var(--line-strong)' : undefined,
+              outlineOffset: -1,
               borderRadius: s.key === 'free' ? '0 8px 8px 0' : undefined,
               background:
                 s.key === 'free'
