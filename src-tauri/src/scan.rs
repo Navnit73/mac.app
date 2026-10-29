@@ -6,11 +6,13 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
+use duobolt_core::find::{self, SearchIndex};
 use duobolt_core::index::NodeId;
 use duobolt_core::models::{
     ReportPage, ScanDoneEvent, ScanId, ScanOptions, ScanProgress, ScanProgressEvent, ScanState,
     ScanStatus, ScanSummary,
 };
+use duobolt_core::models::{SearchQuery, SearchResult};
 use duobolt_core::scanner::bulk::BulkReader;
 use duobolt_core::scanner::{rescan_subtree as core_rescan, scan, ScanOutput};
 use duobolt_core::AppError;
@@ -31,6 +33,16 @@ struct Slot {
     progress: Option<ScanProgress>,
     summary: Option<ScanSummary>,
     output: Option<ScanOutput>,
+    /// Name index for Find, built on first search and dropped whenever the tree changes.
+    index: Option<Arc<SearchIndex>>,
+    /// Ids of the last search, so paging does not re-run it.
+    last_search: Option<CachedSearch>,
+}
+
+struct CachedSearch {
+    key: String,
+    ids: Arc<Vec<NodeId>>,
+    total: u32,
 }
 
 pub(crate) struct ScanHandle {
@@ -126,6 +138,8 @@ pub async fn start_scan(
                 progress: None,
                 summary: None,
                 output: None,
+                index: None,
+                last_search: None,
             }),
         });
         scans.insert(id, handle.clone());
@@ -241,8 +255,75 @@ pub async fn rescan_subtree(
         let cancel = AtomicBool::new(false);
         core_rescan(&BulkReader::new(), out, node_id, &cancel, &mut |_| {})?;
         let summary = out.summary.clone();
+        // The tree changed: the search index and cached results are stale.
+        slot.index = None;
+        slot.last_search = None;
         slot.summary = Some(summary.clone());
         Ok(summary)
+    })
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?
+}
+
+/// Search the scan's names. Builds the index on first use; repeats of the same query (paging)
+/// reuse the cached id list.
+#[tauri::command]
+pub async fn search(
+    state: State<'_, ScanManager>,
+    id: ScanId,
+    query: SearchQuery,
+    cursor: u32,
+) -> Result<SearchResult, AppError> {
+    if query.text.len() > 1024 {
+        return Err(AppError::InvalidInput("query too long".into()));
+    }
+    let h = state.get(id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let key = serde_json::to_string(&query).map_err(|e| AppError::Internal(e.to_string()))?;
+
+        // Fast path: same query as last time, only a new page.
+        {
+            let slot = read(&h.slot);
+            if let (Some(out), Some(c)) = (&slot.output, &slot.last_search) {
+                if c.key == key {
+                    return Ok(find::page(&out.tree, &c.ids, c.total, cursor));
+                }
+            }
+        }
+
+        let mut slot = write(&h.slot);
+        let index = match &slot.index {
+            Some(i) => i.clone(),
+            None => {
+                let Some(out) = &slot.output else {
+                    return Err(AppError::NotFound("scan has no data yet".into()));
+                };
+                let built = Arc::new(SearchIndex::build(&out.tree));
+                slot.index = Some(built.clone());
+                built
+            }
+        };
+        let Some(out) = &slot.output else {
+            return Err(AppError::NotFound("scan has no data yet".into()));
+        };
+        match find::search_ids(&out.tree, &index, &query) {
+            Ok((ids, total)) => {
+                let result = find::page(&out.tree, &ids, total, cursor);
+                slot.last_search = Some(CachedSearch {
+                    key,
+                    ids: Arc::new(ids),
+                    total,
+                });
+                Ok(result)
+            }
+            Err(e) => Ok(SearchResult {
+                items: Vec::new(),
+                total: 0,
+                next_cursor: None,
+                truncated: false,
+                pattern_error: Some(e),
+            }),
+        }
     })
     .await
     .map_err(|e| AppError::Internal(e.to_string()))?

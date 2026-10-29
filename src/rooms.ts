@@ -10,13 +10,17 @@ export interface Room {
 }
 
 export const ROOMS: readonly Room[] = [
-  { path: '/overview', label: 'Overview', blurb: 'The whole drive on one screen', icon: 'overview' },
+  {
+    path: '/overview',
+    label: 'Overview',
+    blurb: 'The whole drive on one screen',
+    icon: 'overview',
+  },
   {
     path: '/find',
     label: 'Find',
     blurb: 'Any file, found as you type',
     icon: 'find',
-    milestone: 'M3',
   },
   { path: '/space', label: 'Space', blurb: 'The heavy things come to the top', icon: 'space' },
   {

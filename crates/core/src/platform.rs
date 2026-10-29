@@ -217,12 +217,17 @@ pub fn open_full_disk_access_settings() -> Result<(), AppError> {
     )
 }
 
+/// The path must be absolute and still exist (it may have changed since the scan).
 fn require_absolute(path: &Path) -> Result<(), AppError> {
-    if path.is_absolute() {
-        Ok(())
-    } else {
-        Err(AppError::InvalidInput("path must be absolute".into()))
+    if !path.is_absolute() {
+        return Err(AppError::InvalidInput("path must be absolute".into()));
     }
+    if std::fs::symlink_metadata(path).is_err() {
+        return Err(AppError::NotFound(
+            "This item no longer exists. It changed after the scan.".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -248,6 +253,12 @@ mod tests {
         assert!(open_path(Path::new("relative/file")).is_err());
         assert!(reveal_in_finder(Path::new("x")).is_err());
         assert!(quick_look(Path::new("x")).is_err());
+    }
+
+    #[test]
+    fn missing_paths_are_reported() {
+        let e = open_path(Path::new("/definitely/not/here.txt")).unwrap_err();
+        assert!(matches!(e, AppError::NotFound(_)));
     }
 
     #[test]

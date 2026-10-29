@@ -45,7 +45,8 @@ export const useScanStore = create<ScanStore>((set, get) => ({
   setScope: (scope) => set({ scope }),
 
   startSelected: async () => {
-    const roots = get().scope === 'disk' ? ['/'] : [await homeDir().then((h) => h.replace(/\/$/, ''))]
+    const roots =
+      get().scope === 'disk' ? ['/'] : [await homeDir().then((h) => h.replace(/\/$/, ''))]
     await get().start(roots)
   },
 

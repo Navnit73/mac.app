@@ -247,6 +247,8 @@ pub struct NodeRow {
     /// Share of the parent's size, 0..=1.
     pub parent_fraction: f32,
     pub has_children: bool,
+    /// Folder containing this entry; only filled for the large-files list.
+    pub location: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -444,14 +446,313 @@ pub struct OverviewSummary {
     /// `None` when the Trash cannot be read (needs Full Disk Access).
     #[ts(type = "number | null")]
     pub trash_bytes: Option<u64>,
+    #[ts(type = "number")]
     pub files: u64,
+    #[ts(type = "number")]
     pub dirs: u64,
+    #[ts(type = "number")]
     pub skipped: u64,
     #[ts(type = "number")]
     pub elapsed_ms: u64,
     pub largest_folder: Option<Crumb>,
     #[ts(type = "number")]
     pub largest_folder_bytes: u64,
+}
+
+// ---------------------------------------------------------------------------------------------
+// M3: Find
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum SearchMode {
+    /// Name contains the text (default).
+    #[default]
+    Substring,
+    Prefix,
+    Exact,
+    Glob,
+    Regex,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum HiddenMode {
+    #[default]
+    Include,
+    Exclude,
+    Only,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum SearchSort {
+    #[default]
+    Relevance,
+    Name,
+    Size,
+    Modified,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[serde(default)]
+#[ts(export)]
+pub struct SearchFilters {
+    pub kind: Option<FileKind>,
+    #[ts(type = "number | null")]
+    pub min_size: Option<u64>,
+    #[ts(type = "number | null")]
+    pub max_size: Option<u64>,
+    /// Unix seconds; only items modified at or after this time.
+    #[ts(type = "number | null")]
+    pub modified_after: Option<i64>,
+    /// Unix seconds; only items modified before this time.
+    #[ts(type = "number | null")]
+    pub modified_before: Option<i64>,
+    pub hidden: HiddenMode,
+    /// Restrict to this folder (node id).
+    pub scope: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, TS)]
+#[serde(default)]
+#[ts(export)]
+pub struct SearchQuery {
+    /// Empty text matches everything (useful with filters).
+    pub text: String,
+    pub mode: SearchMode,
+    pub filters: SearchFilters,
+    pub sort: SearchSort,
+    /// Reverse the sort's natural order (relevance and name: ascending; size and modified: largest or newest first).
+    pub descending: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct SearchResult {
+    pub items: Vec<NodeRow>,
+    /// Number of matches found (can exceed what is listed).
+    pub total: u32,
+    pub next_cursor: Option<u32>,
+    /// True when more than the listing cap matched; the UI asks the user to refine.
+    pub truncated: bool,
+    /// Set for an invalid glob or regex; the list is then empty.
+    pub pattern_error: Option<String>,
+}
+
+// ---------------------------------------------------------------------------------------------
+// M4: Safe Trash + Activity
+// ---------------------------------------------------------------------------------------------
+
+/// Where a removal started; recorded with every batch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum Room {
+    Space,
+    Find,
+    Inspector,
+    Cleanup,
+    Duplicates,
+    Applications,
+    Compress,
+}
+
+impl Room {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Room::Space => "Space",
+            Room::Find => "Find",
+            Room::Inspector => "Inspector",
+            Room::Cleanup => "Cleanup",
+            Room::Duplicates => "Duplicates",
+            Room::Applications => "Applications",
+            Room::Compress => "Compress",
+        }
+    }
+
+    pub fn parse(s: &str) -> Room {
+        match s {
+            "Space" => Room::Space,
+            "Find" => Room::Find,
+            "Cleanup" => Room::Cleanup,
+            "Duplicates" => Room::Duplicates,
+            "Applications" => Room::Applications,
+            "Compress" => Room::Compress,
+            _ => Room::Inspector,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub enum ItemStatus {
+    InTrash,
+    Restored,
+    /// Gone from the Trash (emptied by the user or by DuoBolt).
+    Emptied,
+    Failed,
+    Skipped,
+    /// Something now exists at the original path; still in the Trash.
+    Conflict,
+}
+
+impl ItemStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ItemStatus::InTrash => "in_trash",
+            ItemStatus::Restored => "restored",
+            ItemStatus::Emptied => "emptied",
+            ItemStatus::Failed => "failed",
+            ItemStatus::Skipped => "skipped",
+            ItemStatus::Conflict => "conflict",
+        }
+    }
+
+    pub fn parse(s: &str) -> ItemStatus {
+        match s {
+            "in_trash" => ItemStatus::InTrash,
+            "restored" => ItemStatus::Restored,
+            "emptied" => ItemStatus::Emptied,
+            "skipped" => ItemStatus::Skipped,
+            "conflict" => ItemStatus::Conflict,
+            _ => ItemStatus::Failed,
+        }
+    }
+}
+
+/// One row of the Review sheet.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct TrashPreviewItem {
+    pub node_id: u32,
+    pub name: String,
+    pub path: String,
+    #[ts(type = "number")]
+    pub size: u64,
+    pub file_kind: FileKind,
+    pub is_dir: bool,
+    pub risk: Risk,
+    /// Why this item cannot be moved; `None` when it can.
+    pub blocked: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct TrashPreview {
+    pub items: Vec<TrashPreviewItem>,
+    pub allowed_count: u32,
+    #[ts(type = "number")]
+    pub allowed_bytes: u64,
+    pub blocked_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct SkippedItem {
+    pub path: String,
+    pub reason: String,
+}
+
+/// Outcome of moving a selection to the Trash.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct TrashBatchResult {
+    /// `None` when nothing could be moved (no batch recorded).
+    #[ts(type = "number | null")]
+    pub batch_id: Option<i64>,
+    pub moved_count: u32,
+    #[ts(type = "number")]
+    pub moved_bytes: u64,
+    pub skipped: Vec<SkippedItem>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct BatchSummary {
+    #[ts(type = "number")]
+    pub id: i64,
+    #[ts(type = "number")]
+    pub created_at: i64,
+    pub room: Room,
+    pub item_count: u32,
+    /// Bytes still counted as recovered: items in the Trash or emptied (restored ones excluded).
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub in_trash: u32,
+    pub restored: u32,
+    pub emptied: u32,
+    pub conflicts: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct BatchItem {
+    #[ts(type = "number")]
+    pub id: i64,
+    pub original_path: String,
+    pub trashed_path: Option<String>,
+    #[ts(type = "number")]
+    pub size: u64,
+    pub status: ItemStatus,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct BatchPage {
+    pub batch: BatchSummary,
+    pub items: Vec<BatchItem>,
+    pub total: u32,
+    pub next_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, TS)]
+#[ts(export)]
+pub struct UndoResult {
+    pub restored: u32,
+    /// Restored under a "(restored)" name because the original path was taken.
+    pub renamed: u32,
+    pub conflicts: u32,
+    /// No longer in the Trash (it was emptied).
+    pub missing: u32,
+    pub failed: Vec<SkippedItem>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct EmptyTrashPrep {
+    /// Pass back to `empty_trash` within 60 seconds to confirm.
+    pub token: String,
+    pub duobolt_items: u32,
+    #[ts(type = "number")]
+    pub duobolt_bytes: u64,
+    /// Size of the whole Trash, when it can be read (needs Full Disk Access).
+    #[ts(type = "number | null")]
+    pub trash_bytes: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct WeekStat {
+    /// Unix seconds of Monday 00:00 UTC.
+    #[ts(type = "number")]
+    pub week_start: i64,
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub batches: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct WeeklyStats {
+    pub weeks: Vec<WeekStat>,
+    #[ts(type = "number")]
+    pub total_bytes: u64,
+    pub total_batches: u32,
+    #[ts(type = "number")]
+    pub biggest_bytes: u64,
+    #[ts(type = "number")]
+    pub this_week_bytes: u64,
 }
 
 #[cfg(test)]

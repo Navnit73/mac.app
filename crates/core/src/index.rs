@@ -184,6 +184,11 @@ impl Tree {
         Some(id)
     }
 
+    /// Raw name bytes, for building the search index.
+    pub fn name_for_index(&self, id: NodeId) -> &[u8] {
+        self.name(id)
+    }
+
     pub fn name(&self, id: NodeId) -> &[u8] {
         match self.nodes.get(id as usize) {
             Some(n) => {

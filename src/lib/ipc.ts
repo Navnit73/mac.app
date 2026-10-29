@@ -15,6 +15,8 @@ import type { TopFilters } from '../types/bindings/TopFilters'
 import type { PingEvent } from '../types/bindings/PingEvent'
 import type { PingResponse } from '../types/bindings/PingResponse'
 import type { ReportPage } from '../types/bindings/ReportPage'
+import type { SearchQuery } from '../types/bindings/SearchQuery'
+import type { SearchResult } from '../types/bindings/SearchResult'
 import type { ScanDoneEvent } from '../types/bindings/ScanDoneEvent'
 import type { ScanOptions } from '../types/bindings/ScanOptions'
 import type { ScanProgressEvent } from '../types/bindings/ScanProgressEvent'
@@ -33,6 +35,8 @@ export const commands = {
   rescanSubtree: (id: number, nodeId: number) =>
     invoke<ScanSummary>('rescan_subtree', { id, nodeId }),
 
+  search: (id: number, query: SearchQuery, cursor: number) =>
+    invoke<SearchResult>('search', { id, query, cursor }),
   getFdaStatus: () => invoke<FdaStatus>('get_fda_status'),
   openFdaSettings: () => invoke<void>('open_fda_settings'),
   getOverview: (id: number) => invoke<OverviewSummary>('get_overview', { id }),
@@ -49,8 +53,7 @@ export const commands = {
   revealInFinder: (id: number, nodeId: number) => invoke<void>('reveal_in_finder', { id, nodeId }),
   openNode: (id: number, nodeId: number) => invoke<void>('open_node', { id, nodeId }),
   quickLook: (id: number, nodeId: number) => invoke<void>('quick_look', { id, nodeId }),
-  addExclusion: (id: number, nodeId: number) =>
-    invoke<string[]>('add_exclusion', { id, nodeId }),
+  addExclusion: (id: number, nodeId: number) => invoke<string[]>('add_exclusion', { id, nodeId }),
   getExclusions: () => invoke<string[]>('get_exclusions'),
   removeExclusion: (path: string) => invoke<string[]>('remove_exclusion', { path }),
 }

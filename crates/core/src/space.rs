@@ -18,18 +18,28 @@ pub const MAX_CHART_NODES: usize = 300;
 const MAX_CHART_DEPTH: u8 = 5;
 const DAY: i64 = 86_400;
 
-/// Classify by extension. Directories are `Folder`, except packages which follow their extension.
-pub fn file_kind(name: &[u8], is_dir: bool, is_package: bool) -> FileKind {
-    if is_dir && !is_package {
-        return FileKind::Folder;
+/// Lower-cased extension (up to 16 bytes) of a file name, without allocating.
+fn ext_of<'a>(name: &[u8], buf: &'a mut [u8; 16]) -> &'a [u8] {
+    match name.iter().rposition(|b| *b == b'.') {
+        Some(i) if i + 1 < name.len() && name.len() - i - 1 <= buf.len() => {
+            let e = &name[i + 1..];
+            let out = &mut buf[..e.len()];
+            out.copy_from_slice(e);
+            out.make_ascii_lowercase();
+            out
+        }
+        _ => &[],
     }
-    let lower = String::from_utf8_lossy(name).to_lowercase();
-    let Some(ext) = Path::new(&lower).extension().and_then(|e| e.to_str()) else {
-        return if is_package {
-            FileKind::Apps
-        } else {
-            FileKind::Other
-        };
+}
+
+fn kind_from_ext(ext: &[u8], is_package: bool) -> FileKind {
+    let fallback = if is_package {
+        FileKind::Apps
+    } else {
+        FileKind::Other
+    };
+    let Ok(ext) = std::str::from_utf8(ext) else {
+        return fallback;
     };
     match ext {
         "jpg" | "jpeg" | "png" | "gif" | "heic" | "heif" | "tiff" | "tif" | "bmp" | "webp"
@@ -50,9 +60,21 @@ pub fn file_kind(name: &[u8], is_dir: bool, is_package: bool) -> FileKind {
         "rs" | "js" | "ts" | "tsx" | "jsx" | "py" | "rb" | "go" | "java" | "c" | "h" | "cpp"
         | "hpp" | "swift" | "kt" | "json" | "toml" | "yaml" | "yml" | "html" | "css" | "sh"
         | "php" | "cs" | "o" | "a" | "class" | "jar" => FileKind::Code,
-        _ if is_package => FileKind::Apps,
-        _ => FileKind::Other,
+        _ => fallback,
     }
+}
+
+/// Classify by extension. Directories are `Folder`, except packages which follow their extension.
+pub fn file_kind(name: &[u8], is_dir: bool, is_package: bool) -> FileKind {
+    if is_dir && !is_package {
+        return FileKind::Folder;
+    }
+    let mut buf = [0u8; 16];
+    kind_from_ext(ext_of(name, &mut buf), is_package)
+}
+
+pub(crate) fn kind_of_name(name: &[u8], is_dir: bool, is_package: bool) -> FileKind {
+    file_kind(name, is_dir, is_package)
 }
 
 pub fn age_bucket(mtime: i64, now: i64) -> AgeBucket {
@@ -87,7 +109,13 @@ pub fn display_name(tree: &Tree, id: NodeId) -> String {
     }
 }
 
-fn row(tree: &Tree, id: NodeId, n: &Node, parent_total: u64) -> NodeRow {
+pub(crate) fn row(
+    tree: &Tree,
+    id: NodeId,
+    n: &Node,
+    parent_total: u64,
+    with_location: bool,
+) -> NodeRow {
     let is_dir = n.is_dir();
     let is_package = n.has(flags::PACKAGE);
     NodeRow {
@@ -109,6 +137,13 @@ fn row(tree: &Tree, id: NodeId, n: &Node, parent_total: u64) -> NodeRow {
             (n.total_alloc as f64 / parent_total as f64).min(1.0) as f32
         },
         has_children: is_dir && n.first_child != crate::index::NONE,
+        location: with_location
+            .then(|| {
+                tree.path(id)
+                    .parent()
+                    .map(|p| p.to_string_lossy().into_owned())
+            })
+            .flatten(),
     }
 }
 
@@ -152,7 +187,10 @@ pub fn get_children(
     let end = (start + PAGE_SIZE).min(total);
     let items = ids[start..end]
         .iter()
-        .filter_map(|id| tree.node(*id).map(|n| row(tree, *id, n, parent_total)))
+        .filter_map(|id| {
+            tree.node(*id)
+                .map(|n| row(tree, *id, n, parent_total, false))
+        })
         .collect();
     Ok(ChildrenPage {
         items,
@@ -162,6 +200,8 @@ pub fn get_children(
     })
 }
 
+/// Smart-group membership, given the file's already computed extension and kind.
+#[allow(clippy::too_many_arguments)]
 fn in_group(
     tree: &Tree,
     id: NodeId,
@@ -169,19 +209,15 @@ fn in_group(
     g: SmartGroup,
     now: i64,
     downloads: Option<NodeId>,
+    ext: &[u8],
+    kind: FileKind,
 ) -> bool {
     let old = now.saturating_sub(n.mtime) > 30 * DAY;
-    let name = tree.name(id);
-    let lower = String::from_utf8_lossy(name).to_lowercase();
-    let ext = Path::new(&lower)
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("");
     match g {
-        SmartGroup::OldInstallers => matches!(ext, "dmg" | "pkg") && old,
-        SmartGroup::Archives => file_kind(name, false, false) == FileKind::Archives,
-        SmartGroup::Videos => file_kind(name, false, false) == FileKind::Video,
-        SmartGroup::DiskImages => file_kind(name, false, false) == FileKind::DiskImages,
+        SmartGroup::OldInstallers => matches!(ext, b"dmg" | b"pkg") && old,
+        SmartGroup::Archives => kind == FileKind::Archives,
+        SmartGroup::Videos => kind == FileKind::Video,
+        SmartGroup::DiskImages => kind == FileKind::DiskImages,
         SmartGroup::OldDownloads => old && downloads.is_some_and(|d| tree.is_within(id, d)),
     }
 }
@@ -221,7 +257,10 @@ pub fn get_top_files(
             }
         }
         if let Some(g) = f.group {
-            if !in_group(tree, id, n, g, now, downloads) {
+            let mut buf = [0u8; 16];
+            let ext = ext_of(tree.name(id), &mut buf);
+            let kind = kind_from_ext(ext, false);
+            if !in_group(tree, id, n, g, now, downloads, ext, kind) {
                 continue;
             }
         }
@@ -244,7 +283,7 @@ pub fn get_top_files(
     picked.sort_by(|a, b| b.cmp(a));
     let items = picked
         .into_iter()
-        .filter_map(|(_, id)| tree.node(id).map(|n| row(tree, id, n, 0)))
+        .filter_map(|(_, id)| tree.node(id).map(|n| row(tree, id, n, 0, true)))
         .collect();
     TopFilesResult {
         items,
@@ -270,12 +309,24 @@ pub fn smart_groups(tree: &Tree, now: i64, home: Option<&Path>) -> Vec<SmartGrou
         if n.kind != NodeKind::File
             || n.has(flags::DELETED | flags::DATALESS | flags::HARDLINK_DUP)
             || n.total_alloc == 0
-            || tree.has_flagged_ancestor(id, flags::PACKAGE)
         {
             continue;
         }
+        let mut buf = [0u8; 16];
+        let ext = ext_of(tree.name(id), &mut buf);
+        let kind = kind_from_ext(ext, false);
+        let mut hits = [false; 5];
+        let mut any = false;
         for (i, g) in groups.iter().enumerate() {
-            if in_group(tree, id, n, *g, now, downloads) {
+            hits[i] = in_group(tree, id, n, *g, now, downloads, ext, kind);
+            any |= hits[i];
+        }
+        // The package check walks up the tree, so only pay for it on a match.
+        if !any || tree.has_flagged_ancestor(id, flags::PACKAGE) {
+            continue;
+        }
+        for (i, hit) in hits.iter().enumerate() {
+            if *hit {
                 out[i].count += 1;
                 out[i].bytes += n.total_alloc;
             }

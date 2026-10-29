@@ -38,10 +38,9 @@ export default function FdaBanner() {
       <div className="min-w-0 flex-1">
         <p className="font-semibold">Some folders are off limits without Full Disk Access</p>
         <p className="mt-0.5 text-muted">
-          macOS protects Mail, Messages, Safari, the Trash and parts of Library. DuoBolt skips them
-          and lists each one in the scan report, so totals can be lower than the real usage. Turn on
-          DuoBolt under Privacy &amp; Security, Full Disk Access, then scan again. While developing,
-          grant it to the app that launches DuoBolt (Terminal or your editor).
+          Mail, Messages, Safari, the Trash and parts of Library are skipped, so totals can be lower
+          than real usage. Turn DuoBolt on under Privacy &amp; Security, then scan again. While
+          developing, grant it to the app that launches DuoBolt (Terminal or your editor).
         </p>
         <div className="mt-2 flex gap-2">
           <button type="button" className="btn btn-primary" onClick={() => void openSettings()}>

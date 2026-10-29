@@ -23,4 +23,4 @@ system_other_bytes: number,
 /**
  * `None` when the Trash cannot be read (needs Full Disk Access).
  */
-trash_bytes: number | null, files: bigint, dirs: bigint, skipped: bigint, elapsed_ms: number, largest_folder: Crumb | null, largest_folder_bytes: number, };
+trash_bytes: number | null, files: number, dirs: number, skipped: number, elapsed_ms: number, largest_folder: Crumb | null, largest_folder_bytes: number, };

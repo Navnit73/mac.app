@@ -51,6 +51,7 @@ pub fn run() {
             scan::get_scan_state,
             scan::get_scan_report,
             scan::rescan_subtree,
+            scan::search,
             views::get_fda_status,
             views::open_fda_settings,
             views::get_overview,

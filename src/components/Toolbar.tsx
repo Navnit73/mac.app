@@ -1,7 +1,9 @@
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ROOMS } from '../rooms'
 import { formatCount } from '../lib/format'
+import { useFindStore } from '../state/findStore'
 import { useScanStore } from '../state/scanStore'
+import Icon from './Icon'
 import ScanButton from './ScanButton'
 
 export default function Toolbar() {
@@ -9,6 +11,10 @@ export default function Toolbar() {
   const room = ROOMS.find((r) => pathname.startsWith(r.path))
   const phase = useScanStore((s) => s.phase)
   const progress = useScanStore((s) => s.progress)
+  const navigate = useNavigate()
+  const findText = useFindStore((s) => s.text)
+  const setFind = useFindStore((s) => s.set)
+  const onFind = pathname.startsWith('/find')
 
   return (
     <header
@@ -24,13 +30,27 @@ export default function Toolbar() {
         </span>
       )}
       <div className="ml-auto flex items-center gap-3">
-        <input
-          type="search"
-          aria-label="Search files"
-          placeholder="Search (arrives in M3)"
-          disabled
-          className="h-7 w-56 rounded-lg border border-line bg-bg px-3 placeholder:text-faint"
-        />
+        {!onFind && (
+          <label className="relative">
+            <span className="sr-only">Search files</span>
+            <Icon
+              name="find"
+              size={13}
+              className="absolute top-1/2 left-2.5 -translate-y-1/2 text-faint"
+            />
+            <input
+              type="search"
+              value={findText}
+              onChange={(e) => {
+                setFind({ text: e.target.value })
+                navigate('/find')
+              }}
+              onFocus={() => findText && navigate('/find')}
+              placeholder="Search  ⌘F"
+              className="h-7 w-56 rounded-lg border border-line bg-bg pr-2 pl-7 placeholder:text-faint"
+            />
+          </label>
+        )}
         <ScanButton />
       </div>
     </header>

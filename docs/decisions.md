@@ -16,3 +16,26 @@
 - Subtree rescan tombstones old descendants (`DELETED`) and appends new nodes, so ids held by the UI stay valid. Memory of tombstoned nodes is not reclaimed until the next full scan.
 - Only one scan runs at a time, and only the latest finished scan is kept in memory.
 - A cancelled directory listing appears as an empty directory in the partial tree.
+
+## M2 (Overview, Space, Inspector)
+- Overview categories (Developer, Old downloads, Caches, Logs, Large old files) come from a small built-in list of well-known locations in `core::overview`. They preview the Cleanup rule engine (M6), which will replace them so both screens share one source. Duplicates and Leftovers show as "Coming soon" until their rooms exist.
+- Overview "free" is the volume's available capacity for important usage (includes purgeable space, as System Settings does). "Used" is total minus that. Anything the scan did not account for is shown as "System & other" (whole-disk scan) or "Outside the scan" (home-only scan).
+- Space and Inspector commands take a scan id and a node id, never a path, so the UI cannot ask Rust to act on a path the scan did not produce. Reveal, Open and Quick Look run fixed system tools (`open`, `qlmanage`) with the path as a separate argument, never through a shell.
+- Large-files and smart-group lists skip hard-link duplicates, iCloud placeholders and anything inside a package (one row per package), so each byte is listed once.
+- Chart data is capped at 300 nodes. The largest openable folder is expanded first; the rest of each folder folds into an "Other" bucket. Packages are drawn as one block.
+- Folder colors in charts follow the file kind that dominates them (at least 35% of bytes), otherwise neutral. Age coloring uses one blue ramp because age is ordered.
+- Full Disk Access is detected by trying to list protected folders. The banner, footer pill and scan report all explain the cause of "Protected by macOS" skips and link to System Settings. When running in development, the permission belongs to the app that launches DuoBolt (Terminal or the editor).
+- Exclusions added from the Inspector are stored in `~/Library/Application Support/DuoBolt/settings.json` and merged into every scan. A settings screen to manage them arrives in M9.
+- `core::trash::protected_reason` exists now (shared with the Inspector's lock indicator); M4 builds the move/undo machinery around it.
+- A dev-only mock of the Tauri bridge (`src/lib/mockBridge.ts`) lets the UI run in a browser with sample data for screenshots. It is loaded only when `import.meta.env.DEV` and no Tauri runtime is present, and is absent from production bundles.
+- `target/` can reach several GB; dev builds use line-table debug info only, and fixtures default to `$TMPDIR/duobolt-fixtures` so `cargo clean` is never blocked by the locked-directory fixture.
+
+## M3 (Find)
+- The search index is one byte buffer of lower-cased, NFC-normalized names (NUL-separated) plus a start offset per node. Substring, prefix and exact use a single `memmem` pass; glob and regex test each name. Queries are normalized the same way, so NFC and NFD spellings match each other.
+- Glob and regex match the file name only, not the full path. Glob is case-insensitive.
+- The index is built on the first search after a scan and dropped when a subtree rescan changes the tree. The last query's full id list is cached so paging does not re-run it.
+- At most 10,000 matches are listed (best first for the chosen sort); the true total is always reported and the UI asks the user to refine.
+- An empty query with filters lists everything that passes the filters ("all videos over 1 GB").
+- "Skip hidden" also hides files inside hidden folders (for example everything in `.git`).
+- Date filtering uses the modified time. Created and last-opened dates are not in the scan index (they need extra system calls per file), so they are shown in the Inspector but not filterable yet.
+- Results that no longer exist are detected when an action runs on them (Reveal, Open, Quick Look check the path first) and are marked "Missing" in the list.

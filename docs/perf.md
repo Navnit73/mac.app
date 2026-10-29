@@ -36,3 +36,43 @@ real scans are bound by filesystem calls.
 
 `Node` is about 100 bytes plus the name bytes, so 5M files is roughly 0.5 GB, inside the
 1.5 GB budget. Not yet measured on a real 5M-file tree.
+
+## M2 views on a real tree
+
+`scan_bench <home> bulk --views` on a real home folder (1.95M files, 225k folders, 129 GB):
+
+| Step | Time |
+|---|---|
+| Scan | 14.6 s |
+| Overview summary | 23 ms |
+| Folder listing (sorted, first page) | under 1 ms |
+| Large files (100 MB+, top 500) | 3.5 ms |
+| Smart groups (5 groups, whole tree) | 98 ms (was 1.0 s before removing per-file string allocation) |
+| Sunburst chart data (5 rings, 300 nodes max) | 0.3 ms |
+
+## M3 Find
+
+Target (PRD 6.2): first page for "report" on a 1M-file index in under 100 ms.
+
+Criterion, 1M synthetic names (`cargo bench -p duobolt-core --bench scan -- search_1m`):
+
+| Step | Time |
+|---|---|
+| Build index | 22 ms |
+| Substring, first page | 3.6 ms |
+| Prefix, first page | 3.5 ms |
+| Glob, first page | 14 ms |
+
+Real home folder (2.18M names, `scan_bench <home> bulk --views`):
+
+| Query | Matches | Time |
+|---|---|---|
+| Index build | | 103 ms |
+| `report` (contains) | 1,868 | 5.5 ms |
+| `read` (starts with) | 22,362 | 7.9 ms |
+| `*.pdf` (glob) | 75 | 93 ms |
+| `^img_\d+\.jpe?g$` (regex) | 11 | 53 ms |
+| `e` (contains, worst case) | 1.6M | 222 ms |
+
+The one-letter worst case is bound by ranking 1.6M hits; the UI debounces input, so it only runs
+once the user pauses. Glob and regex test every name (no index acceleration).

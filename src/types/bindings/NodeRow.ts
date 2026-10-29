@@ -13,4 +13,8 @@ size: number, size_logical: number, file_count: number, mtime: number,
 /**
  * Share of the parent's size, 0..=1.
  */
-parent_fraction: number, has_children: boolean, };
+parent_fraction: number, has_children: boolean, 
+/**
+ * Folder containing this entry; only filled for the large-files list.
+ */
+location: string | null, };
