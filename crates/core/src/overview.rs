@@ -65,6 +65,27 @@ pub fn describe(path: &Path, home: &Path) -> Option<String> {
     None
 }
 
+/// Fill in the Duplicates category once a duplicate scan has run, keeping totals consistent.
+pub fn set_duplicates(o: &mut OverviewSummary, bytes: u64, copies: u32) {
+    if let Some(c) = o
+        .categories
+        .iter_mut()
+        .find(|c| c.id == CategoryId::Duplicates)
+    {
+        c.bytes = bytes;
+        c.items = copies;
+        c.analyzed = true;
+        c.blurb = "Extra copies of identical files. One copy of each is always kept.".into();
+    }
+    let clearable: u64 = o
+        .categories
+        .iter()
+        .filter(|c| c.analyzed)
+        .map(|c| c.bytes)
+        .sum();
+    o.kept_bytes = o.scanned_bytes.saturating_sub(clearable);
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn summarize(
     tree: &Tree,

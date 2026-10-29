@@ -133,6 +133,60 @@ pub fn xattr_plist_strings(path: &Path, name: &str) -> Vec<String> {
     }
 }
 
+/// Bytes that would be freed if this file were deleted: APFS's private size, which leaves out
+/// blocks shared with clones. `None` when the volume does not report it.
+pub fn private_size(path: &Path) -> Option<u64> {
+    let c_path = CString::new(path.as_os_str().as_bytes()).ok()?;
+    let mut attrs = libc::attrlist {
+        bitmapcount: libc::ATTR_BIT_MAP_COUNT,
+        reserved: 0,
+        commonattr: libc::ATTR_CMN_RETURNED_ATTRS,
+        volattr: 0,
+        dirattr: 0,
+        fileattr: 0,
+        forkattr: libc::ATTR_CMNEXT_PRIVATESIZE,
+    };
+    let mut buf = [0u8; 64];
+    // SAFETY: `attrs` and `buf` are valid for the call and `buf.len()` is its real size.
+    let rc = unsafe {
+        libc::getattrlist(
+            c_path.as_ptr(),
+            &mut attrs as *mut libc::attrlist as *mut libc::c_void,
+            buf.as_mut_ptr() as *mut libc::c_void,
+            buf.len(),
+            libc::FSOPT_ATTR_CMN_EXTENDED | libc::FSOPT_NOFOLLOW,
+        )
+    };
+    if rc != 0 {
+        return None;
+    }
+    // Layout: u32 length, attribute_set_t (5 x u32), then the off_t private size.
+    let returned_fork = u32::from_ne_bytes(buf.get(20..24)?.try_into().ok()?);
+    if returned_fork & libc::ATTR_CMNEXT_PRIVATESIZE == 0 {
+        return None;
+    }
+    let v = i64::from_ne_bytes(buf.get(24..32)?.try_into().ok()?);
+    u64::try_from(v).ok()
+}
+
+/// APFS copy-on-write clone of `src` at `dst` (which must not exist). Never follows symlinks.
+pub fn clone_file(src: &Path, dst: &Path) -> Result<(), AppError> {
+    let (Ok(s), Ok(d)) = (
+        CString::new(src.as_os_str().as_bytes()),
+        CString::new(dst.as_os_str().as_bytes()),
+    ) else {
+        return Err(AppError::InvalidInput("path contains NUL".into()));
+    };
+    const CLONE_NOFOLLOW: u32 = 0x0001;
+    // SAFETY: both are valid NUL-terminated strings for the duration of the call.
+    let rc = unsafe { libc::clonefile(s.as_ptr(), d.as_ptr(), CLONE_NOFOLLOW) };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error().into())
+    }
+}
+
 /// Spotlight's "last opened" time as Unix seconds, if known.
 pub fn last_used(path: &Path) -> Option<i64> {
     let out = Command::new("/usr/bin/mdls")
@@ -253,6 +307,25 @@ mod tests {
         assert!(open_path(Path::new("relative/file")).is_err());
         assert!(reveal_in_finder(Path::new("x")).is_err());
         assert!(quick_look(Path::new("x")).is_err());
+    }
+
+    #[test]
+    fn private_size_and_clones() {
+        use std::io::Write;
+        let tmp = tempfile::tempdir().unwrap();
+        let a = tmp.path().join("a.bin");
+        std::fs::File::create(&a)
+            .unwrap()
+            .write_all(&vec![7u8; 1 << 20])
+            .unwrap();
+        let before = private_size(&a).unwrap();
+        assert!(before >= 1 << 20, "a lone file owns all its blocks");
+        let b = tmp.path().join("b.bin");
+        clone_file(&a, &b).unwrap();
+        assert_eq!(std::fs::read(&a).unwrap(), std::fs::read(&b).unwrap());
+        // After cloning, the blocks are shared, so removing one copy frees (almost) nothing.
+        assert!(private_size(&b).unwrap() < before / 4);
+        assert!(clone_file(&a, &b).is_err(), "never overwrites");
     }
 
     #[test]

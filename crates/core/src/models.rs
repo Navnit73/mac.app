@@ -755,6 +755,152 @@ pub struct WeeklyStats {
     pub this_week_bytes: u64,
 }
 
+// ---------------------------------------------------------------------------------------------
+// M5: Duplicates
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(default)]
+#[ts(export)]
+pub struct DupOptions {
+    /// Files smaller than this are ignored (default 1 MB).
+    #[ts(type = "number")]
+    pub min_size: u64,
+    /// Only these kinds; empty means all.
+    pub kinds: Vec<FileKind>,
+    /// Only inside this folder (node id).
+    pub scope: Option<u32>,
+    /// Also look inside Photos and Music libraries. Editing them can break those apps.
+    pub include_media_libraries: bool,
+    /// Also look in `~/Library` and hidden folders, where apps keep their own data.
+    pub include_app_data: bool,
+}
+
+impl Default for DupOptions {
+    fn default() -> Self {
+        Self {
+            min_size: 1_000_000,
+            kinds: Vec::new(),
+            scope: None,
+            include_media_libraries: false,
+            include_app_data: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub enum DupStage {
+    Grouping,
+    QuickCheck,
+    Comparing,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct DupProgress {
+    pub stage: DupStage,
+    pub files_done: u32,
+    pub files_total: u32,
+    #[ts(type = "number")]
+    pub bytes_done: u64,
+    #[ts(type = "number")]
+    pub bytes_total: u64,
+    #[ts(type = "number | null")]
+    pub eta_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum KeepRule {
+    Newest,
+    Oldest,
+    ShortestPath,
+    /// Keep the copy inside a chosen folder; groups without one are left as they are.
+    PreferredFolder,
+    /// Clear the selection so the user picks by hand.
+    Manual,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct DupFile {
+    pub node_id: u32,
+    pub name: String,
+    pub path: String,
+    #[ts(type = "number")]
+    pub mtime: i64,
+    /// Bytes freed if this copy goes away (APFS private size; shared clone blocks excluded).
+    #[ts(type = "number")]
+    pub private_size: u64,
+    pub selected: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct DupGroup {
+    pub id: u32,
+    #[ts(type = "number")]
+    pub size: u64,
+    pub file_kind: FileKind,
+    pub name: String,
+    /// Bytes freed by the current selection in this group.
+    #[ts(type = "number")]
+    pub reclaimable: u64,
+    pub files: Vec<DupFile>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct DupGroupsPage {
+    pub groups: Vec<DupGroup>,
+    pub total: u32,
+    pub next_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, TS)]
+#[ts(export)]
+pub struct DupSavings {
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub files: u32,
+    pub groups: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, TS)]
+#[ts(export)]
+pub struct DupSummary {
+    pub groups: u32,
+    pub files: u32,
+    /// Most that could be freed: every copy but one in every group.
+    #[ts(type = "number")]
+    pub potential_bytes: u64,
+    /// Files dropped because they changed while being read, or could not be read.
+    pub skipped: Vec<SkippedItem>,
+    #[ts(type = "number")]
+    pub elapsed_ms: u64,
+    pub cancelled: bool,
+}
+
+/// Where the duplicate scan for a given file scan stands.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct DupStatus {
+    pub running: bool,
+    pub summary: Option<DupSummary>,
+    pub savings: DupSavings,
+    /// What could still be freed (every copy but one), after removals.
+    #[ts(type = "number")]
+    pub potential_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct DupDoneEvent {
+    pub summary: Option<DupSummary>,
+    pub error: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -26,6 +26,7 @@ fn main() {
         .cloned()
         .unwrap_or_else(|| "bulk".into());
     let views = rest.iter().any(|a| a == "--views");
+    let dupes = rest.iter().any(|a| a == "--dupes");
     let cancel = AtomicBool::new(false);
     let opts = ScanOptions::default();
     let roots = [PathBuf::from(dir)];
@@ -51,6 +52,9 @@ fn main() {
             );
             if views {
                 run_views(&out);
+            }
+            if dupes {
+                run_dupes(&out);
             }
         }
         Err(e) => {
@@ -149,5 +153,67 @@ fn run_views(out: &duobolt_core::scanner::ScanOutput) {
                 format!("{} matches, {} on first page", r.total, r.items.len())
             });
         }
+    }
+}
+
+fn run_dupes(out: &duobolt_core::scanner::ScanOutput) {
+    use duobolt_core::duplicates::{candidates, find_duplicates, Session};
+    use duobolt_core::models::DupOptions;
+    use std::sync::atomic::AtomicBool;
+    let t = Instant::now();
+    let cands = candidates(&out.tree, &DupOptions::default());
+    let n = cands.len();
+    let bytes: u64 = cands.iter().map(|c| c.size).sum();
+    println!(
+        "dupes: {n} candidates >= 1 MB ({:.1} GB) in {:.0} ms",
+        bytes as f64 / 1e9,
+        t.elapsed().as_secs_f64() * 1000.0
+    );
+    let t = Instant::now();
+    let last = std::sync::Mutex::new(String::new());
+    let found = find_duplicates(
+        cands,
+        &AtomicBool::new(false),
+        &|p| {
+            if let Ok(mut l) = last.lock() {
+                *l = format!(
+                    "{:?} {}/{} files, {:.1}/{:.1} GB",
+                    p.stage,
+                    p.files_done,
+                    p.files_total,
+                    p.bytes_done as f64 / 1e9,
+                    p.bytes_total as f64 / 1e9
+                );
+            }
+        },
+        None,
+    );
+    let hashing = t.elapsed();
+    let s = Session::new(
+        found,
+        hashing.as_millis() as u64,
+        &duobolt_core::platform::private_size,
+    );
+    println!(
+        "dupes: {} groups, {} files, {:.2} GB could be freed, {} skipped, hashing {:.1} s (last stage: {})",
+        s.summary.groups,
+        s.summary.files,
+        s.summary.potential_bytes as f64 / 1e9,
+        s.summary.skipped.len(),
+        hashing.as_secs_f64(),
+        last.lock().map(|l| l.clone()).unwrap_or_default()
+    );
+    for g in s.groups.iter().take(5) {
+        let names: Vec<String> = g
+            .files
+            .iter()
+            .map(|f| f.cand.path.display().to_string())
+            .collect();
+        println!(
+            "  {:.1} MB x {}: {}",
+            g.size as f64 / 1e6,
+            g.files.len(),
+            names.join(" | ")
+        );
     }
 }
