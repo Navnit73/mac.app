@@ -28,7 +28,6 @@ export const ROOMS: readonly Room[] = [
     label: 'Cleanup',
     blurb: 'Caches, build files and old installers, grouped and totalled',
     icon: 'cleanup',
-    milestone: 'M6',
   },
   {
     path: '/duplicates',
@@ -41,7 +40,6 @@ export const ROOMS: readonly Room[] = [
     label: 'Applications',
     blurb: 'Every app with everything it left behind',
     icon: 'applications',
-    milestone: 'M6',
   },
   {
     path: '/monitor',

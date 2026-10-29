@@ -1004,7 +1004,7 @@ mod tests {
         std::fs::write(prefs.join("com.foo.bar.plist"), "prefs").unwrap();
         std::fs::write(prefs.join("com.other.app.plist"), "other").unwrap();
 
-        let apps = discover(&[apps_dir.clone()]);
+        let apps = discover(std::slice::from_ref(&apps_dir));
         assert_eq!(apps.len(), 1);
         assert_eq!(apps[0].arch, AppArch::AppleSilicon);
         let roots = vec![apps_dir.clone(), home.join("Library")];
