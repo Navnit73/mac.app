@@ -85,3 +85,4 @@
 
 ## Scope change (2026-10-29)
 - Monitor (M7) and Compress (M8) are removed from scope at the product owner's request. Their placeholder modules, sidebar entries, icons and the unused `Compress` activity room were deleted, and the PRD and build prompts mark them as removed. With every remaining room built, the "arrives in M…" placeholder screen and sidebar milestone badges were removed too.
+- The app opens in light mode regardless of the macOS appearance (product owner's choice, 2026-10-29). The dark palette is kept behind `data-theme="dark"` for a future Settings option, and the Tauri window is set to the light theme so the title bar matches.
