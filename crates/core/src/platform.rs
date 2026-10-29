@@ -199,6 +199,131 @@ pub fn last_used(path: &Path) -> Option<i64> {
     parse_mdls_date(String::from_utf8_lossy(&out.stdout).trim())
 }
 
+/// Last-opened times for many paths with one `mdls` call (same order; `None` when unknown).
+pub fn last_used_many(paths: &[&Path]) -> Vec<Option<i64>> {
+    if paths.is_empty() {
+        return Vec::new();
+    }
+    let out = Command::new("/usr/bin/mdls")
+        .args(["-name", "kMDItemLastUsedDate"])
+        .args(paths)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output();
+    let Ok(out) = out else {
+        return vec![None; paths.len()];
+    };
+    // One `kMDItemLastUsedDate = <date>` (or `= (null)`) line per path, in argument order.
+    let text = String::from_utf8_lossy(&out.stdout);
+    let mut found: Vec<Option<i64>> = text
+        .lines()
+        .filter(|l| l.trim_start().starts_with("kMDItemLastUsedDate"))
+        .map(|l| {
+            l.split_once('=')
+                .and_then(|(_, v)| parse_mdls_date(v.trim()))
+        })
+        .collect();
+    found.resize(paths.len(), None);
+    found
+}
+
+/// Who signed an app (first "Authority=" line of `codesign -dv`), if it is signed.
+pub fn code_signer(app: &Path) -> Option<String> {
+    require_absolute(app).ok()?;
+    let out = Command::new("/usr/bin/codesign")
+        .args(["-dv", "--verbose=2"])
+        .arg(app)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .output()
+        .ok()?;
+    // codesign writes the details to stderr.
+    String::from_utf8_lossy(&out.stderr)
+        .lines()
+        .find_map(|l| l.strip_prefix("Authority=").map(str::to_string))
+}
+
+/// Convert an `.icns` file to a small PNG with `sips` (used for app icons in the UI).
+pub fn icon_to_png(icns: &Path, png: &Path, px: u32) -> Result<(), AppError> {
+    require_absolute(icns)?;
+    require_absolute(png)?;
+    let status = Command::new("/usr/bin/sips")
+        .args(["-s", "format", "png", "-Z", &px.to_string()])
+        .arg(icns)
+        .arg("--out")
+        .arg(png)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
+    if status.success() && png.exists() {
+        Ok(())
+    } else {
+        Err(AppError::Internal("icon conversion failed".into()))
+    }
+}
+
+/// Apps open right now (those with a bundle id).
+pub fn running_apps() -> Vec<crate::cleanup::RunningApp> {
+    let ws = objc2_app_kit::NSWorkspace::sharedWorkspace();
+    ws.runningApplications()
+        .iter()
+        .filter_map(|app| {
+            let bundle_id = app.bundleIdentifier()?.to_string();
+            let name = app
+                .localizedName()
+                .map_or_else(|| bundle_id.clone(), |n| n.to_string());
+            Some(crate::cleanup::RunningApp {
+                bundle_id,
+                name,
+                pid: app.processIdentifier(),
+            })
+        })
+        .collect()
+}
+
+/// True if an app with this bundle id is running (asked fresh, checked by process id).
+pub fn is_running(bundle_id: &str) -> bool {
+    let apps = objc2_app_kit::NSRunningApplication::runningApplicationsWithBundleIdentifier(
+        &NSString::from_str(bundle_id),
+    );
+    // SAFETY: signal 0 only checks that the process exists; nothing is sent.
+    apps.iter()
+        .any(|a| unsafe { libc::kill(a.processIdentifier(), 0) } == 0)
+}
+
+/// Ask apps to quit the normal way (like choosing Quit), then wait up to `wait`. Never forces.
+/// Returns the bundle ids still running afterwards.
+pub fn quit_apps(bundle_ids: &[String], wait: std::time::Duration) -> Vec<String> {
+    use objc2_app_kit::NSRunningApplication;
+    let mut pids: Vec<(String, libc::pid_t)> = Vec::new();
+    for id in bundle_ids {
+        let apps =
+            NSRunningApplication::runningApplicationsWithBundleIdentifier(&NSString::from_str(id));
+        for app in apps.iter() {
+            pids.push((id.clone(), app.processIdentifier()));
+            app.terminate();
+        }
+    }
+    // Watch the processes themselves: the workspace's app list only refreshes on the main
+    // run loop, so it can lag behind on this thread.
+    // SAFETY: signal 0 only checks that the process exists; nothing is sent.
+    let alive = |pid: libc::pid_t| unsafe { libc::kill(pid, 0) } == 0;
+    let start = std::time::Instant::now();
+    loop {
+        let mut left: Vec<String> = pids
+            .iter()
+            .filter(|(_, pid)| alive(*pid))
+            .map(|(id, _)| id.clone())
+            .collect();
+        left.dedup();
+        if left.is_empty() || start.elapsed() >= wait {
+            return left;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+}
+
 /// Parse `2026-10-01 10:11:12 +0000` into Unix seconds.
 pub fn parse_mdls_date(s: &str) -> Option<i64> {
     let mut parts = s.split_whitespace();

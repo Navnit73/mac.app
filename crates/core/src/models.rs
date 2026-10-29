@@ -392,13 +392,14 @@ pub struct NodeDetails {
     pub why: Option<String>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
 #[ts(export)]
 pub enum CategoryId {
     Developer,
     OldDownloads,
     Caches,
     Logs,
+    Mail,
     Duplicates,
     Leftovers,
     LargeOld,
@@ -898,6 +899,215 @@ pub struct DupStatus {
 #[ts(export)]
 pub struct DupDoneEvent {
     pub summary: Option<DupSummary>,
+    pub error: Option<String>,
+}
+
+// ---------------------------------------------------------------------------------------------
+// M6: Cleanup
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct CleanupCategory {
+    pub id: CategoryId,
+    pub name: String,
+    /// What this is and whether it comes back.
+    pub blurb: String,
+    pub risk: Risk,
+    /// Everything the rules found (report-only items excluded).
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub items: u32,
+    #[ts(type = "number")]
+    pub selected_bytes: u64,
+    pub selected_items: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct CleanupItem {
+    pub node_id: u32,
+    pub name: String,
+    pub path: String,
+    pub category: CategoryId,
+    pub rule_id: String,
+    pub rule_name: String,
+    pub risk: Risk,
+    /// Apps or tools recreate it when needed.
+    pub regenerates: bool,
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub files: u32,
+    #[ts(type = "number")]
+    pub mtime: i64,
+    pub is_dir: bool,
+    /// Name of the running app that uses this, if any. Such items are not selected by default.
+    pub running_app: Option<String>,
+    /// Shown but never removed by DuoBolt; `guidance` says what to do instead.
+    pub report_only: bool,
+    pub guidance: Option<String>,
+    pub selected: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct CleanupItemsPage {
+    pub items: Vec<CleanupItem>,
+    pub total: u32,
+    pub next_page: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct CleanupSummary {
+    pub categories: Vec<CleanupCategory>,
+    #[ts(type = "number")]
+    pub selected_bytes: u64,
+    pub selected_items: u32,
+    /// Apps that are open and own selected items; offered "Quit first" in the review.
+    pub running_selected: Vec<String>,
+    /// Bytes in the user's Trash, if readable (shown as information with Empty Trash).
+    #[ts(type = "number | null")]
+    pub trash_bytes: Option<u64>,
+}
+
+/// What the Review sheet shows before a cleanup runs.
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct CleanupPlan {
+    pub node_ids: Vec<u32>,
+    /// Open apps owning selected items: offered "Quit them first".
+    pub running_apps: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub enum SelectMode {
+    /// Every item that may be batch-selected (not careful, not report-only).
+    All,
+    None,
+    /// Back to the defaults: safe items of apps that are not running.
+    Defaults,
+}
+
+// ---------------------------------------------------------------------------------------------
+// M6: Applications
+// ---------------------------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub enum AppSource {
+    AppStore,
+    /// Part of macOS: shown, never removable.
+    System,
+    Other,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub enum AppArch {
+    AppleSilicon,
+    Intel,
+    Universal,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AppSummary {
+    pub id: u32,
+    pub name: String,
+    pub bundle_id: String,
+    pub version: String,
+    pub path: String,
+    pub source: AppSource,
+    pub arch: AppArch,
+    /// Size of the .app bundle.
+    #[ts(type = "number")]
+    pub app_bytes: u64,
+    /// Settings, data and caches found for it (shared items left out).
+    #[ts(type = "number")]
+    pub data_bytes: u64,
+    #[ts(type = "number")]
+    pub cache_bytes: u64,
+    #[ts(type = "number | null")]
+    pub last_used: Option<i64>,
+    pub removable: bool,
+    /// Why it cannot be removed, when it cannot.
+    pub locked_reason: Option<String>,
+    pub running: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub enum RelatedKind {
+    Support,
+    Caches,
+    Preferences,
+    Containers,
+    GroupContainers,
+    SavedState,
+    Logs,
+    LaunchAgents,
+    HttpStorage,
+    WebKit,
+    /// `/Library/Application Support`: shared by all users, review first.
+    SystemSupport,
+}
+
+/// How sure DuoBolt is that a file belongs to the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub enum Confidence {
+    /// Named exactly after the bundle id.
+    Exact,
+    /// Name starts with the bundle id (for example a helper).
+    Prefix,
+    /// Named after the app's display name.
+    Name,
+    /// Used by several apps of the same developer.
+    Shared,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct RelatedFile {
+    pub node_id: u32,
+    pub name: String,
+    pub path: String,
+    pub kind: RelatedKind,
+    pub confidence: Confidence,
+    #[ts(type = "number")]
+    pub bytes: u64,
+    /// Selected for removal by default.
+    pub suggested: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AppDetails {
+    pub app: AppSummary,
+    pub app_node: Option<u32>,
+    pub related: Vec<RelatedFile>,
+    pub signed_by: Option<String>,
+    /// Installer receipts in /private/var/db/receipts (information only).
+    pub receipts: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AppsList {
+    pub apps: Vec<AppSummary>,
+    /// Leftovers of removed apps found in the Library folders (bytes, items).
+    #[ts(type = "number")]
+    pub leftover_bytes: u64,
+    pub leftover_items: u32,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
+pub struct AppsDoneEvent {
+    pub count: u32,
     pub error: Option<String>,
 }
 

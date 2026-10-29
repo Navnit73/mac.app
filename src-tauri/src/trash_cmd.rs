@@ -169,6 +169,7 @@ pub(crate) fn refresh(out: &mut ScanOutput, paths: &[PathBuf]) {
 #[tauri::command]
 pub async fn preview_trash(
     scans: State<'_, ScanManager>,
+    cleanup: State<'_, crate::cleanup_cmd::CleanupState>,
     scan_id: ScanId,
     node_ids: Vec<NodeId>,
 ) -> Result<TrashPreview, AppError> {
@@ -187,6 +188,7 @@ pub async fn preview_trash(
                     name,
                     is_dir,
                     space::file_kind(out.tree.name(id), is_dir, pkg),
+                    cleanup.risk_of(scan_id, id),
                 )
             })
             .collect();
@@ -200,7 +202,7 @@ pub async fn preview_trash(
             allowed_bytes: 0,
             blocked_count: 0,
         };
-        for (c, size, id, name, is_dir, kind) in cands {
+        for (c, size, id, name, is_dir, kind, rule_risk) in cands {
             let blocked = trash::preflight(&c, &ctx).err();
             if blocked.is_some() {
                 preview.blocked_count += 1;
@@ -215,7 +217,8 @@ pub async fn preview_trash(
                 size,
                 file_kind: kind,
                 is_dir,
-                risk: risk_for(&c.path),
+                // A cleanup rule knows best; otherwise a hint from the location.
+                risk: rule_risk.unwrap_or_else(|| risk_for(&c.path)),
                 blocked,
             });
         }

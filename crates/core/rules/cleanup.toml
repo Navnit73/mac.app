@@ -1,0 +1,226 @@
+# DuoBolt cleanup rules. Embedded in the app at build time; updated only with app updates.
+#
+# Each rule finds items under a fixed root. Fields:
+#   id, category, name, description   what the user sees
+#   paths     patterns starting with "~/" (home) or "/". Everything before the first wildcard is
+#             the rule's root; nothing outside that root can ever match. "*" stays inside one
+#             folder, "**" crosses folders. ".." is rejected.
+#   exclude   absolute patterns ("~/" allowed) that never match, and are never entered
+#   kind      "any" (default), "dir" or "file"
+#   sibling   a file that must sit next to the match (project-aware rules)
+#   risk      safe | review | careful. Only safe items are selected by default.
+#   regenerates            apps or tools recreate it
+#   requires_app_closed    bundle id of the app that must not be running
+#   app_from_name          the item's own name is the bundle id of the app it belongs to
+#   min_age_days           newest change at least this old (folders: anything inside)
+#   min_size_mb            skip smaller items
+#   report_only, guidance  shown with advice, never removed by DuoBolt
+#
+# Rules are applied in order. An item claimed by an earlier rule is never counted again.
+
+version = 1
+
+# --- Developer files -------------------------------------------------------------------------
+
+[[rule]]
+id = "xcode-derived-data"
+category = "Developer"
+name = "Xcode build data"
+description = "Intermediate build files. Xcode rebuilds them on the next build."
+paths = ["~/Library/Developer/Xcode/DerivedData/*"]
+risk = "safe"
+regenerates = true
+requires_app_closed = "com.apple.dt.Xcode"
+
+[[rule]]
+id = "xcode-archives"
+category = "Developer"
+name = "Xcode archives"
+description = "Archived app builds. Keep the ones you may need to symbolicate crash reports."
+paths = ["~/Library/Developer/Xcode/Archives/*"]
+risk = "review"
+
+[[rule]]
+id = "xcode-device-support"
+category = "Developer"
+name = "Device support files"
+description = "Debug symbols copied from iPhones and iPads. Copied again when a device connects."
+paths = [
+  "~/Library/Developer/Xcode/iOS DeviceSupport/*",
+  "~/Library/Developer/Xcode/watchOS DeviceSupport/*",
+]
+risk = "review"
+regenerates = true
+
+[[rule]]
+id = "simulator-caches"
+category = "Developer"
+name = "Simulator caches"
+description = "Caches of the iOS Simulator. Rebuilt when a simulator starts."
+paths = ["~/Library/Developer/CoreSimulator/Caches/*"]
+risk = "safe"
+regenerates = true
+
+[[rule]]
+id = "simulator-devices"
+category = "Developer"
+name = "Simulator devices"
+description = "Installed simulators and their data."
+paths = ["~/Library/Developer/CoreSimulator/Devices"]
+risk = "review"
+report_only = true
+guidance = "Remove unused simulators with: xcrun simctl delete unavailable"
+
+[[rule]]
+id = "package-caches"
+category = "Developer"
+name = "Package manager caches"
+description = "Downloaded packages kept by Homebrew, CocoaPods, npm, Yarn, pip, Gradle and Cargo. Downloaded again when needed."
+paths = [
+  "~/Library/Caches/Homebrew",
+  "~/Library/Caches/CocoaPods",
+  "~/Library/Caches/Yarn",
+  "~/Library/Caches/pip",
+  "~/.npm/_cacache",
+  "~/.gradle/caches",
+  "~/.cargo/registry/cache",
+  "~/.cargo/registry/src",
+]
+risk = "safe"
+regenerates = true
+
+[[rule]]
+id = "docker-data"
+category = "Developer"
+name = "Docker data"
+description = "Images, containers and volumes stored by Docker Desktop."
+paths = ["~/Library/Containers/com.docker.docker/Data"]
+risk = "careful"
+report_only = true
+guidance = "Free Docker space from Docker itself: docker system prune"
+
+[[rule]]
+id = "cargo-target"
+category = "Developer"
+name = "Rust build folders"
+description = "target folders of Rust projects (next to a Cargo.toml). Cargo rebuilds them."
+paths = ["~/**/target"]
+exclude = ["~/Library/**", "~/.*/**"]
+kind = "dir"
+sibling = "Cargo.toml"
+risk = "review"
+regenerates = true
+
+[[rule]]
+id = "node-modules"
+category = "Developer"
+name = "node_modules of idle projects"
+description = "Dependencies of JavaScript projects untouched for 60 days. Reinstalled with npm install."
+paths = ["~/**/node_modules"]
+exclude = ["~/Library/**", "~/.*/**"]
+kind = "dir"
+sibling = "package.json"
+min_age_days = 60
+risk = "review"
+regenerates = true
+
+[[rule]]
+id = "python-caches"
+category = "Developer"
+name = "Python caches and virtual environments"
+description = "__pycache__ folders and .venv environments. Recreated by Python and your project tools."
+# .venv first: it holds many __pycache__ folders and should be one item.
+paths = ["~/**/.venv", "~/**/__pycache__"]
+exclude = ["~/Library/**", "~/.*/**"]
+kind = "dir"
+risk = "review"
+regenerates = true
+
+# --- Old downloads ---------------------------------------------------------------------------
+
+[[rule]]
+id = "old-downloads"
+category = "OldDownloads"
+name = "Old downloads"
+description = "Items in Downloads you have not changed for 30 days."
+paths = ["~/Downloads/*"]
+min_age_days = 30
+risk = "review"
+
+[[rule]]
+id = "old-installers"
+category = "OldDownloads"
+name = "Old installers"
+description = "Disk images and installer packages older than 30 days. Usually not needed after installing."
+paths = ["~/**/*.dmg", "~/**/*.pkg"]
+exclude = ["~/Library/**", "~/.*/**"]
+kind = "file"
+min_age_days = 30
+risk = "review"
+
+# --- Caches ----------------------------------------------------------------------------------
+
+[[rule]]
+id = "browser-caches"
+category = "Caches"
+name = "Browser caches"
+description = "Saved copies of web pages. Clearing them signs you out of nothing; pages load again from the web."
+paths = [
+  "~/Library/Caches/com.apple.Safari",
+  "~/Library/Caches/Google/Chrome",
+  "~/Library/Caches/Firefox",
+  "~/Library/Caches/com.microsoft.edgemac",
+  "~/Library/Caches/company.thebrowser.Browser",
+]
+risk = "safe"
+regenerates = true
+
+[[rule]]
+id = "system-caches"
+category = "Caches"
+name = "macOS caches"
+description = "Caches of built-in macOS services. Usually rebuilt, but some services re-download data."
+paths = ["~/Library/Caches/com.apple.*"]
+risk = "review"
+regenerates = true
+app_from_name = true
+
+[[rule]]
+id = "app-caches"
+category = "Caches"
+name = "App caches"
+description = "Files apps keep to start faster. They grow back as you use your apps."
+paths = ["~/Library/Caches/*"]
+risk = "safe"
+regenerates = true
+app_from_name = true
+
+# --- Logs ------------------------------------------------------------------------------------
+
+[[rule]]
+id = "crash-reports"
+category = "Logs"
+name = "Crash reports"
+description = "Reports written when an app crashed. Only useful when reporting a bug."
+paths = ["~/Library/Logs/DiagnosticReports/*"]
+risk = "safe"
+
+[[rule]]
+id = "user-logs"
+category = "Logs"
+name = "App logs"
+description = "Log files apps write while running. New logs are written as needed."
+paths = ["~/Library/Logs/*"]
+exclude = ["~/Library/Logs/DiagnosticReports"]
+risk = "safe"
+
+# --- Mail & messaging ------------------------------------------------------------------------
+
+[[rule]]
+id = "mail-downloads"
+category = "Mail"
+name = "Mail attachment downloads"
+description = "Attachments Mail saved when you opened them. The originals stay in your messages."
+paths = ["~/Library/Containers/com.apple.mail/Data/Library/Mail Downloads/*"]
+risk = "review"
+requires_app_closed = "com.apple.mail"

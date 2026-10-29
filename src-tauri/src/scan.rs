@@ -37,6 +37,8 @@ struct Slot {
     index: Option<Arc<SearchIndex>>,
     /// Ids of the last search, so paging does not re-run it.
     last_search: Option<CachedSearch>,
+    /// Bumped whenever the tree changes, so derived data (cleanup analysis) knows to rebuild.
+    version: u64,
 }
 
 struct CachedSearch {
@@ -92,7 +94,13 @@ impl ScanManager {
         };
         slot.index = None;
         slot.last_search = None;
+        slot.version += 1;
         result
+    }
+
+    /// Changes whenever the scan's tree changes.
+    pub(crate) fn version(&self, id: ScanId) -> Result<u64, AppError> {
+        Ok(read(&self.get(id)?.slot).version)
     }
 
     fn get(&self, id: ScanId) -> Result<Arc<ScanHandle>, AppError> {
@@ -161,6 +169,7 @@ pub async fn start_scan(
                 output: None,
                 index: None,
                 last_search: None,
+                version: 0,
             }),
         });
         scans.insert(id, handle.clone());

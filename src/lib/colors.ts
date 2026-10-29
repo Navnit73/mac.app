@@ -64,9 +64,10 @@ export const CATEGORY_COLOR: Record<CategoryId, string> = {
   LargeOld: 'var(--s5)',
   Duplicates: 'var(--s6)',
   Leftovers: 'var(--s7)',
+  Mail: 'var(--s8)',
 }
 
-/** Where a category's "Review" action will live. */
+/** Where each category's items are reviewed. */
 export const CATEGORY_ROUTE: Record<CategoryId, string> = {
   Developer: '/cleanup',
   OldDownloads: '/cleanup',
@@ -74,5 +75,6 @@ export const CATEGORY_ROUTE: Record<CategoryId, string> = {
   Logs: '/cleanup',
   LargeOld: '/space',
   Duplicates: '/duplicates',
-  Leftovers: '/applications',
+  Leftovers: '/cleanup',
+  Mail: '/cleanup',
 }

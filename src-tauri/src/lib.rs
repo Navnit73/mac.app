@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+mod apps_cmd;
+mod cleanup_cmd;
 mod dupes_cmd;
 mod scan;
 mod settings;
@@ -47,6 +49,8 @@ pub fn run() {
         .manage(scan::ScanManager::default())
         .manage(trash_cmd::TrashState::default())
         .manage(dupes_cmd::DupState::default())
+        .manage(cleanup_cmd::CleanupState::default())
+        .manage(apps_cmd::AppsState::default())
         .setup(|app| {
             use tauri::Manager;
             let handle = app.handle().clone();
@@ -97,7 +101,18 @@ pub fn run() {
             dupes_cmd::apply_keep_rule,
             dupes_cmd::set_duplicate_selected,
             dupes_cmd::duplicate_selection,
-            dupes_cmd::remove_duplicates
+            dupes_cmd::remove_duplicates,
+            cleanup_cmd::get_cleanup,
+            cleanup_cmd::list_cleanup_items,
+            cleanup_cmd::set_cleanup_selected,
+            cleanup_cmd::select_cleanup_category,
+            cleanup_cmd::build_cleanup_plan,
+            cleanup_cmd::execute_cleanup_plan,
+            apps_cmd::start_apps_scan,
+            apps_cmd::list_apps,
+            apps_cmd::get_app_details,
+            apps_cmd::app_icon,
+            apps_cmd::uninstall_app
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

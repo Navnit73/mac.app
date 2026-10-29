@@ -14,6 +14,7 @@ use duobolt_core::models::{
 use duobolt_core::{inspect, overview, platform, space, AppError};
 use tauri::State;
 
+use crate::cleanup_cmd::CleanupState;
 use crate::dupes_cmd::DupState;
 use crate::scan::ScanManager;
 use crate::settings;
@@ -41,25 +42,41 @@ pub async fn open_fda_settings() -> Result<(), AppError> {
 }
 
 #[tauri::command]
-pub async fn get_overview(
-    state: State<'_, ScanManager>,
-    dups: State<'_, DupState>,
-    id: ScanId,
-) -> Result<OverviewSummary, AppError> {
-    let dup_totals = dups.overview_totals(id);
-    state.with_output(id, |out, roots| {
+pub async fn get_overview(app: tauri::AppHandle, id: ScanId) -> Result<OverviewSummary, AppError> {
+    use tauri::Manager;
+    // The cleanup analysis can take a second on a big disk: keep it off the async runtime.
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<ScanManager>();
+        let dup_totals = app.state::<DupState>().overview_totals(id);
+        let (roots, scan_summary) =
+            state.with_output(id, |out, roots| Ok((roots.to_vec(), out.summary.clone())))?;
         let probe = roots
             .first()
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("/"));
         let volume = platform::volume_info(&probe)?;
         let mut summary =
-            overview::summarize(&out.tree, &out.summary, roots, volume, &home(), now());
+            app.state::<CleanupState>()
+                .with_analysis(&state, id, |a, rules| {
+                    state.with_output(id, |out, _| {
+                        Ok(overview::summarize(
+                            &out.tree,
+                            &scan_summary,
+                            &roots,
+                            volume,
+                            now(),
+                            a,
+                            rules,
+                        ))
+                    })
+                })??;
         if let Some((bytes, copies)) = dup_totals {
             overview::set_duplicates(&mut summary, bytes, copies);
         }
         Ok(summary)
     })
+    .await
+    .map_err(|e| AppError::Internal(e.to_string()))?
 }
 
 #[tauri::command]

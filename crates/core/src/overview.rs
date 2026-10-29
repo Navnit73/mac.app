@@ -1,11 +1,12 @@
 //! Overview: the storage bar and category totals (M2).
 //!
-//! The categories here come from a small built-in set of well-known locations. They are a preview
-//! of the rule engine that arrives with Cleanup (M6), which will replace them so Overview and
-//! Cleanup share one source of truth.
+//! Category totals come from the cleanup rule engine (`core::cleanup`), so Overview and Cleanup
+//! share one source of truth.
 
+use std::collections::HashSet;
 use std::path::Path;
 
+use crate::cleanup;
 use crate::index::{flags, NodeId, NodeKind, Tree, ROOT};
 use crate::models::{
     CategoryId, CategorySummary, Crumb, OverviewSummary, Risk, ScanSummary, VolumeInfo,
@@ -24,22 +25,6 @@ pub const DEVELOPER_PATHS: &[&str] = &[
     "Library/Caches/CocoaPods",
     ".cargo/registry",
 ];
-
-struct Found {
-    id: NodeId,
-    bytes: u64,
-    count: u32,
-}
-
-fn lookup(tree: &Tree, home: &Path, rel: &str) -> Option<Found> {
-    let id = tree.find_path(&home.join(rel))?;
-    let n = tree.node(id)?;
-    Some(Found {
-        id,
-        bytes: n.total_alloc,
-        count: n.file_count,
-    })
-}
 
 /// Plain-language hint for a path, when it matches a well-known location.
 pub fn describe(path: &Path, home: &Path) -> Option<String> {
@@ -86,57 +71,35 @@ pub fn set_duplicates(o: &mut OverviewSummary, bytes: u64, copies: u32) {
     o.kept_bytes = o.scanned_bytes.saturating_sub(clearable);
 }
 
+/// The storage bar and category cards. Category totals come from the cleanup analysis, so the
+/// Overview and Cleanup always agree; "Large old files" covers what no cleanup item does.
 #[allow(clippy::too_many_arguments)]
 pub fn summarize(
     tree: &Tree,
     scan: &ScanSummary,
     roots: &[String],
     volume: VolumeInfo,
-    home: &Path,
     now: i64,
+    analysis: &cleanup::Analysis,
+    rules: &cleanup::Rules,
 ) -> OverviewSummary {
     let scanned = tree.node(ROOT).map_or(0, |n| n.total_alloc);
-    let mut claimed: Vec<NodeId> = Vec::new();
-
-    // Developer files.
-    let dev: Vec<Found> = DEVELOPER_PATHS
-        .iter()
-        .filter_map(|p| lookup(tree, home, p))
-        .collect();
-    let dev_bytes: u64 = dev.iter().map(|f| f.bytes).sum();
-    let dev_items: u32 = dev.iter().map(|f| f.count).sum();
-    claimed.extend(dev.iter().map(|f| f.id));
-
-    // Caches, excluding the developer caches that live inside ~/Library/Caches.
-    let caches = lookup(tree, home, "Library/Caches");
-    let (mut cache_bytes, mut cache_items) = caches.as_ref().map_or((0, 0), |f| (f.bytes, f.count));
-    if let Some(c) = &caches {
-        claimed.push(c.id);
-        for f in dev.iter().filter(|f| tree.is_within(f.id, c.id)) {
-            cache_bytes = cache_bytes.saturating_sub(f.bytes);
-            cache_items = cache_items.saturating_sub(f.count);
-        }
-    }
-
-    let logs = lookup(tree, home, "Library/Logs");
-    claimed.extend(logs.as_ref().map(|f| f.id));
-
-    // Old downloads: direct children of ~/Downloads untouched for 30+ days.
-    let downloads = lookup(tree, home, "Downloads");
-    let (mut dl_bytes, mut dl_items) = (0u64, 0u32);
-    if let Some(d) = &downloads {
-        claimed.push(d.id);
-        for c in tree.children(d.id) {
-            if let Some(n) = tree.node(c) {
-                if now.saturating_sub(n.mtime) > 30 * DAY {
-                    dl_bytes += n.total_alloc;
-                    dl_items += n.file_count.max(1);
-                }
+    let totals = analysis.totals(rules);
+    let claimed: HashSet<NodeId> = analysis.items.iter().map(|i| i.node).collect();
+    let inside_claimed = |id: NodeId| {
+        let mut cur = id;
+        loop {
+            if claimed.contains(&cur) {
+                return true;
+            }
+            match tree.node(cur) {
+                Some(n) if n.parent != cur && tree.node(n.parent).is_some() => cur = n.parent,
+                _ => return false,
             }
         }
-    }
+    };
 
-    // Large, old files that no other category already covers.
+    // Large, old files that no cleanup item already covers.
     let (mut large_bytes, mut large_items) = (0u64, 0u32);
     for id in tree.ids() {
         let Some(n) = tree.node(id) else { continue };
@@ -145,7 +108,7 @@ pub fn summarize(
             || n.total_alloc < LARGE_OLD_MIN
             || now.saturating_sub(n.mtime) < 365 * DAY
             || tree.has_flagged_ancestor(id, flags::PACKAGE)
-            || claimed.iter().any(|c| tree.is_within(id, *c))
+            || inside_claimed(id)
         {
             continue;
         }
@@ -153,80 +116,39 @@ pub fn summarize(
         large_items += 1;
     }
 
-    let cat = |id, name: &str, blurb: &str, bytes, items, risk, analyzed| CategorySummary {
-        id,
-        name: name.to_string(),
-        blurb: blurb.to_string(),
-        bytes,
-        items,
-        risk,
-        analyzed,
-    };
-    let categories = vec![
-        cat(
-            CategoryId::Developer,
-            "Developer files",
-            "Build output and package caches. Your tools rebuild them.",
-            dev_bytes,
-            dev_items,
-            Risk::Safe,
-            true,
-        ),
-        cat(
-            CategoryId::OldDownloads,
-            "Old downloads",
-            "Items in Downloads you have not touched for 30 days.",
-            dl_bytes,
-            dl_items,
-            Risk::Review,
-            true,
-        ),
-        cat(
-            CategoryId::Caches,
-            "Caches",
-            "App caches. They grow back as you use your apps.",
-            cache_bytes,
-            cache_items,
-            Risk::Safe,
-            true,
-        ),
-        cat(
-            CategoryId::Logs,
-            "Logs",
-            "Log files and crash reports.",
-            logs.as_ref().map_or(0, |f| f.bytes),
-            logs.as_ref().map_or(0, |f| f.count),
-            Risk::Safe,
-            true,
-        ),
-        cat(
-            CategoryId::LargeOld,
-            "Large old files",
-            "Files over 500 MB not modified for a year.",
-            large_bytes,
-            large_items,
-            Risk::Review,
-            true,
-        ),
-        cat(
-            CategoryId::Duplicates,
-            "Duplicates",
-            "Exact copies of the same file. Arrives with the Duplicates room.",
-            0,
-            0,
-            Risk::Review,
-            false,
-        ),
-        cat(
-            CategoryId::Leftovers,
-            "Leftovers",
-            "Files from apps you already removed. Arrives with Applications.",
-            0,
-            0,
-            Risk::Review,
-            false,
-        ),
-    ];
+    let mut categories: Vec<CategorySummary> = cleanup::CATEGORIES
+        .iter()
+        .map(|(id, name, blurb, risk)| {
+            let (bytes, items) = totals.get(id).copied().unwrap_or_default();
+            CategorySummary {
+                id: *id,
+                name: (*name).to_string(),
+                blurb: (*blurb).to_string(),
+                bytes,
+                items,
+                risk: *risk,
+                analyzed: true,
+            }
+        })
+        .collect();
+    categories.push(CategorySummary {
+        id: CategoryId::LargeOld,
+        name: "Large old files".into(),
+        blurb: "Files over 500 MB not modified for a year.".into(),
+        bytes: large_bytes,
+        items: large_items,
+        risk: Risk::Review,
+        analyzed: true,
+    });
+    categories.push(CategorySummary {
+        id: CategoryId::Duplicates,
+        name: "Duplicates".into(),
+        blurb: "Exact copies of the same file. Run a duplicate scan to count them.".into(),
+        bytes: 0,
+        items: 0,
+        risk: Risk::Review,
+        analyzed: false,
+    });
 
     let clearable: u64 = categories
         .iter()
@@ -235,10 +157,7 @@ pub fn summarize(
         .sum();
     let used = volume.total.saturating_sub(volume.available_important);
 
-    let trash_bytes = tree.find_path(&home.join(".Trash")).and_then(|id| {
-        let n = tree.node(id)?;
-        (!n.has(flags::UNREADABLE)).then_some(n.total_alloc)
-    });
+    let trash_bytes = analysis.trash_bytes;
 
     let (largest_folder, largest_folder_bytes) = tree
         .children(ROOT)
@@ -316,6 +235,32 @@ mod tests {
         }
     }
 
+    fn analysis(t: &Tree, home: &Path, now: i64) -> (cleanup::Analysis, cleanup::Rules) {
+        let r = cleanup::Rules::bundled(home).unwrap();
+        let a = cleanup::analyze(t, &r, home, now, &[], &Default::default());
+        (a, r)
+    }
+
+    #[test]
+    fn overview_totals_equal_cleanup_totals() {
+        let (t, home) = home_tree();
+        let (a, r) = analysis(&t, &home, 400 * DAY);
+        let o = summarize(
+            &t,
+            &ScanSummary::default(),
+            &["/Users/me".into()],
+            vol(),
+            400 * DAY,
+            &a,
+            &r,
+        );
+        let s = cleanup::Session::new(a, &r, None).summary(&r);
+        for c in &s.categories {
+            let ov = o.categories.iter().find(|x| x.id == c.id).unwrap();
+            assert_eq!((ov.bytes, ov.items), (c.bytes, c.items), "{:?}", c.id);
+        }
+    }
+
     fn home_tree() -> (Tree, PathBuf) {
         let mut t = Tree::new();
         let h = add(&mut t, ROOT, "/Users/me", NodeKind::Dir, 0, 0);
@@ -340,7 +285,8 @@ mod tests {
     fn categories_do_not_double_count() {
         let (t, home) = home_tree();
         let scan = ScanSummary::default();
-        let o = summarize(&t, &scan, &["/Users/me".into()], vol(), &home, 400 * DAY);
+        let (a, r) = analysis(&t, &home, 400 * DAY);
+        let o = summarize(&t, &scan, &["/Users/me".into()], vol(), 400 * DAY, &a, &r);
         let by = |id| o.categories.iter().find(|c| c.id == id).unwrap();
         assert_eq!(by(CategoryId::Developer).bytes, 5000);
         assert_eq!(
@@ -365,13 +311,15 @@ mod tests {
     #[test]
     fn remainder_is_system_and_other() {
         let (t, home) = home_tree();
+        let (a, r) = analysis(&t, &home, 0);
         let o = summarize(
             &t,
             &ScanSummary::default(),
             &["/Users/me".into()],
             vol(),
-            &home,
             0,
+            &a,
+            &r,
         );
         assert_eq!(
             o.system_other_bytes,
@@ -399,13 +347,15 @@ mod tests {
         let trash = add(&mut t, h, ".Trash", NodeKind::Dir, 0, 0);
         t.node_mut(trash).unwrap().flags |= flags::UNREADABLE;
         t.aggregate();
+        let (a, r) = analysis(&t, &home, 0);
         let o = summarize(
             &t,
             &ScanSummary::default(),
             &["/Users/me".into()],
             vol(),
-            &home,
             0,
+            &a,
+            &r,
         );
         assert_eq!(o.trash_bytes, None);
     }
