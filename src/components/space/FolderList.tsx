@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { KIND_COLOR } from '../../lib/colors'
 import { formatAge, formatBytes, formatCount, formatPercent } from '../../lib/format'
 import { commands, describeError } from '../../lib/ipc'
+import { useScanStore } from '../../state/scanStore'
 import { useSpaceStore } from '../../state/spaceStore'
 import type { NodeRow } from '../../types/bindings/NodeRow'
 import type { SortKey } from '../../types/bindings/SortKey'
@@ -46,6 +47,7 @@ export default function FolderList({ scanId }: { scanId: number }) {
   const selectedId = useSpaceStore((s) => s.selectedId)
   const select = useSpaceStore((s) => s.select)
   const navigate = useSpaceStore((s) => s.navigate)
+  const dataVersion = useScanStore((s) => s.dataVersion)
 
   const [sort, setSort] = useState<SortKey>('Size')
   const [desc, setDesc] = useState(true)
@@ -75,7 +77,8 @@ export default function FolderList({ scanId }: { scanId: number }) {
         if (mine === request.current) setLoading(false)
       }
     },
-    [scanId, currentId, sort, desc],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [scanId, currentId, sort, desc, dataVersion],
   )
 
   useEffect(() => {

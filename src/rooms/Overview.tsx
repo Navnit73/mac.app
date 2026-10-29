@@ -11,6 +11,7 @@ import { formatBytes, formatCount, formatDuration } from '../lib/format'
 import { useFdaStore } from '../state/fdaStore'
 import { useScanStore } from '../state/scanStore'
 import { useSpaceStore } from '../state/spaceStore'
+import { useTrashStore } from '../state/trashStore'
 import type { OverviewSummary } from '../types/bindings/OverviewSummary'
 
 function Welcome() {
@@ -76,6 +77,7 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
   const navigate = useNavigate()
   const navigateSpace = useSpaceStore((s) => s.navigate)
   const fda = useFdaStore((s) => s.status)
+  const dataVersion = useScanStore((s) => s.dataVersion)
   const [o, setO] = useState<OverviewSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [reportOpen, setReportOpen] = useState(false)
@@ -89,7 +91,7 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
     return () => {
       live = false
     }
-  }, [scanId])
+  }, [scanId, dataVersion])
 
   if (error) return <p className="p-8 text-bad">{error}</p>
   if (!o) return <p className="p-8 text-muted">Loading…</p>
@@ -194,10 +196,9 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
               : 'Empty it to reclaim the space'
           }
           action={{
-            text: 'Empty Trash',
-            onClick: () => undefined,
-            disabled: true,
-            title: 'Arrives with Safe Trash (M4)',
+            text: 'Empty Trash…',
+            onClick: () => void useTrashStore.getState().openEmpty(),
+            title: 'Permanently delete everything in the Trash',
           }}
         />
         <InfoCard

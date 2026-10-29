@@ -224,6 +224,15 @@ body {
     background: var(--accent);
     filter: brightness(1.08);
   }
+  /* Destructive: same deep red in both modes so white text stays readable (5.4:1). */
+  .btn-danger {
+    background: #c0302f;
+    border-color: transparent;
+    color: #ffffff;
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: #a82827;
+  }
   .btn-lg {
     height: 36px;
     padding: 0 18px;

@@ -19,6 +19,9 @@ interface ScanStore {
   /** Roots of the current or last scan, for display. */
   roots: string[]
   scope: ScanScope
+  /** Bumped whenever files change (Trash, Undo) so views refetch. */
+  dataVersion: number
+  bumpData: () => void
   setScope: (s: ScanScope) => void
   /** Scan the folder chosen by `scope`. */
   startSelected: () => Promise<void>
@@ -41,7 +44,9 @@ export const useScanStore = create<ScanStore>((set, get) => ({
   error: null,
   roots: [],
   scope: 'home',
+  dataVersion: 0,
 
+  bumpData: () => set((s) => ({ dataVersion: s.dataVersion + 1 })),
   setScope: (scope) => set({ scope }),
 
   startSelected: async () => {

@@ -10,6 +10,7 @@ import { highlightParts, middleTruncate, tildify } from '../lib/text'
 import { toQuery, useFindStore, type DatePreset, type SizePreset } from '../state/findStore'
 import { useScanStore } from '../state/scanStore'
 import { useSpaceStore } from '../state/spaceStore'
+import { useTrashStore } from '../state/trashStore'
 import type { HiddenMode } from '../types/bindings/HiddenMode'
 import type { NodeRow } from '../types/bindings/NodeRow'
 import type { SearchMode } from '../types/bindings/SearchMode'
@@ -96,6 +97,7 @@ function Select<T extends string>({
 export default function Find() {
   const scanId = useScanStore((s) => s.scanId)
   const phase = useScanStore((s) => s.phase)
+  const dataVersion = useScanStore((s) => s.dataVersion)
   const store = useFindStore()
   const {
     text,
@@ -160,7 +162,7 @@ export default function Find() {
         .finally(() => mine === request.current && setBusy(false))
     }, DEBOUNCE_MS)
     return () => clearTimeout(t)
-  }, [ready, scanId, query])
+  }, [ready, scanId, query, dataVersion])
 
   const loadMore = () => {
     if (scanId === null || cursor === null || busy) return
@@ -415,10 +417,10 @@ export default function Find() {
           <button
             type="button"
             className="btn h-6"
-            disabled
-            title="Moving to the Trash arrives with Safe Trash (M4)"
+            title="Review, then move to the Trash (⌘⌫)"
+            onClick={() => void useTrashStore.getState().openReview(selected, 'Find')}
           >
-            <Icon name="trash" size={12} /> Move to Trash (M4)
+            <Icon name="trash" size={12} /> Move to Trash…
           </button>
           <button
             type="button"

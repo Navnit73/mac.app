@@ -23,7 +23,14 @@ pub const MAX_BATCH: usize = 10_000;
 /// Matching is case-insensitive (macOS volumes usually are) and component-wise, so
 /// `/System-old` is not caught by `/System` but `/system/Library` is.
 pub fn protected_reason(path: &Path) -> Option<&'static str> {
-    if !path.is_absolute()
+    // `Path::components` silently drops `.`, so check the raw text too.
+    let raw = path.as_os_str().as_encoded_bytes();
+    let dotted = raw.windows(3).any(|w| w == b"/./")
+        || raw.ends_with(b"/.")
+        || raw.windows(4).any(|w| w == b"/../")
+        || raw.ends_with(b"/..");
+    if dotted
+        || !path.is_absolute()
         || path
             .components()
             .any(|c| matches!(c, Component::ParentDir | Component::CurDir))
@@ -708,11 +715,11 @@ mod tests {
             fn every_request_is_moved_or_skipped(n in 0usize..12, change in proptest::collection::vec(any::<bool>(), 12)) {
                 let e = env();
                 let mut cands = Vec::new();
-                for i in 0..n {
+                for (i, changed) in change.iter().enumerate().take(n) {
                     let f = e.root.join(format!("f{i}"));
                     file(&f, b"abc");
                     let c = candidate(&f);
-                    if change[i] {
+                    if *changed {
                         file(&f, b"changed!");
                     }
                     cands.push(c);

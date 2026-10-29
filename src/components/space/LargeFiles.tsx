@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { KIND_LABEL, KIND_ORDER } from '../../lib/colors'
 import { formatAge, formatBytes, formatCount } from '../../lib/format'
 import { commands, describeError } from '../../lib/ipc'
+import { useScanStore } from '../../state/scanStore'
 import { useSpaceStore } from '../../state/spaceStore'
 import type { FileKind } from '../../types/bindings/FileKind'
 import type { NodeRow } from '../../types/bindings/NodeRow'
@@ -45,6 +46,7 @@ function shortPath(p: string | null): string {
 export default function LargeFiles({ scanId }: { scanId: number }) {
   const selectedId = useSpaceStore((s) => s.selectedId)
   const select = useSpaceStore((s) => s.select)
+  const dataVersion = useScanStore((s) => s.dataVersion)
   const [minSize, setMinSize] = useState(100 * MB)
   const [kind, setKind] = useState<FileKind | null>(null)
   const [group, setGroup] = useState<SmartGroup | null>(null)
@@ -58,7 +60,7 @@ export default function LargeFiles({ scanId }: { scanId: number }) {
       .getSmartGroups(scanId)
       .then(setGroups)
       .catch(() => setGroups([]))
-  }, [scanId])
+  }, [scanId, dataVersion])
 
   useEffect(() => {
     let live = true
@@ -69,7 +71,7 @@ export default function LargeFiles({ scanId }: { scanId: number }) {
     return () => {
       live = false
     }
-  }, [scanId, minSize, kind, group])
+  }, [scanId, minSize, kind, group, dataVersion])
 
   const rows: NodeRow[] = result?.items ?? []
   // eslint-disable-next-line react-hooks/incompatible-library

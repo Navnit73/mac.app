@@ -52,6 +52,7 @@ function Chart({ scanId }: { scanId: number }) {
   const navigate = useSpaceStore((s) => s.navigate)
   const select = useSpaceStore((s) => s.select)
   const goBack = useSpaceStore((s) => s.goBack)
+  const dataVersion = useScanStore((s) => s.dataVersion)
   const [data, setData] = useState<ChartNode | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -66,7 +67,7 @@ function Chart({ scanId }: { scanId: number }) {
     return () => {
       live = false
     }
-  }, [scanId, currentId, view])
+  }, [scanId, currentId, view, dataVersion])
 
   if (error) return <p className="p-6 text-bad">{error}</p>
   if (!data) return <p className="p-6 text-muted">Drawing…</p>

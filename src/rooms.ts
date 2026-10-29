@@ -63,6 +63,5 @@ export const ROOMS: readonly Room[] = [
     label: 'Activity',
     blurb: 'The space you got back, week by week',
     icon: 'activity',
-    milestone: 'M4',
   },
 ] as const

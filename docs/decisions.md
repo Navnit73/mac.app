@@ -39,3 +39,15 @@
 - "Skip hidden" also hides files inside hidden folders (for example everything in `.git`).
 - Date filtering uses the modified time. Created and last-opened dates are not in the scan index (they need extra system calls per file), so they are shown in the Inspector but not filterable yet.
 - Results that no longer exist are detected when an action runs on them (Reveal, Open, Quick Look check the path first) and are marked "Missing" in the list.
+
+## M4 (Safe Trash and Activity)
+- The UI never sends paths for removal: `preview_trash` and `trash_items` take node ids, and Rust uses the path and the device/inode/size/mtime recorded by the scan. Selecting a folder and something inside it moves only the folder.
+- Each item is checked again right before it moves (`core::trash::preflight`): absolute and normalized (also checked on the raw text, because Rust drops `.` components when parsing), parent canonicalized and compared (rejects any symlink on the way), protected list, inside a scan root and not the root itself, not DuoBolt's own bundle, not a mount point, and unchanged since the scan. Folders compare identity and modification time only, because directory sizes differ between readers. One item failing never stops the others.
+- Protected list additions: `/private` and its first level, any `.Trash`/`.Trashes` path, mount points, and `/Users/<name>` itself.
+- Moves use `NSFileManager trashItemAtURL:resultingItemURL:`, which never follows a symlink. A test verified moving three temp files into the real Trash and back works without Full Disk Access.
+- Empty Trash empties the whole Trash through Finder (user's choice), after a second confirmation carrying a one-time token that expires in 60 seconds. It needs the Automation permission for Finder; packaging (M10) must add `NSAppleEventsUsageDescription` and the Apple Events entitlement.
+- Undo never overwrites: if the original path is taken, the item stays in the Trash as "name taken" until the user picks "Restore with a new name" (`name (restored).ext`).
+- "Recovered" bytes count items in the Trash or emptied; restored items are excluded. Weeks start Monday 00:00 UTC.
+- If the Trash cannot be read (no Full Disk Access), reconciliation leaves items as "In Trash" rather than guessing they were emptied.
+- The CSV export is written to Downloads by Rust, never overwriting an existing file, then revealed in Finder.
+- Destructive dialogs open with focus on Cancel.

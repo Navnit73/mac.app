@@ -4,6 +4,7 @@ use std::time::Duration;
 
 mod scan;
 mod settings;
+mod trash_cmd;
 mod views;
 
 use duobolt_core::models::{ping as core_ping, PingEvent, PingResponse};
@@ -43,6 +44,15 @@ fn emit_ticks(app: AppHandle, count: u32) -> Result<(), AppError> {
 pub fn run() {
     let result = tauri::Builder::default()
         .manage(scan::ScanManager::default())
+        .manage(trash_cmd::TrashState::default())
+        .setup(|app| {
+            use tauri::Manager;
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                trash_cmd::reconcile_on_launch(&handle.state::<trash_cmd::TrashState>());
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             ping,
             emit_ticks,
@@ -66,7 +76,18 @@ pub fn run() {
             views::quick_look,
             views::add_exclusion,
             views::get_exclusions,
-            views::remove_exclusion
+            views::remove_exclusion,
+            trash_cmd::preview_trash,
+            trash_cmd::trash_items,
+            trash_cmd::undo_batch,
+            trash_cmd::undo_last,
+            trash_cmd::prepare_empty_trash,
+            trash_cmd::empty_trash,
+            trash_cmd::list_batches,
+            trash_cmd::get_batch,
+            trash_cmd::get_weekly_stats,
+            trash_cmd::export_activity_csv,
+            trash_cmd::clear_activity
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {

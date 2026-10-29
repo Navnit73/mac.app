@@ -14,7 +14,15 @@ import type { TopFilesResult } from '../types/bindings/TopFilesResult'
 import type { TopFilters } from '../types/bindings/TopFilters'
 import type { PingEvent } from '../types/bindings/PingEvent'
 import type { PingResponse } from '../types/bindings/PingResponse'
+import type { BatchPage } from '../types/bindings/BatchPage'
+import type { BatchSummary } from '../types/bindings/BatchSummary'
+import type { EmptyTrashPrep } from '../types/bindings/EmptyTrashPrep'
 import type { ReportPage } from '../types/bindings/ReportPage'
+import type { Room } from '../types/bindings/Room'
+import type { TrashBatchResult } from '../types/bindings/TrashBatchResult'
+import type { TrashPreview } from '../types/bindings/TrashPreview'
+import type { UndoResult } from '../types/bindings/UndoResult'
+import type { WeeklyStats } from '../types/bindings/WeeklyStats'
 import type { SearchQuery } from '../types/bindings/SearchQuery'
 import type { SearchResult } from '../types/bindings/SearchResult'
 import type { ScanDoneEvent } from '../types/bindings/ScanDoneEvent'
@@ -37,6 +45,26 @@ export const commands = {
 
   search: (id: number, query: SearchQuery, cursor: number) =>
     invoke<SearchResult>('search', { id, query, cursor }),
+  previewTrash: (scanId: number, nodeIds: number[]) =>
+    invoke<TrashPreview>('preview_trash', { scanId, nodeIds }),
+  trashItems: (scanId: number, nodeIds: number[], room: Room) =>
+    invoke<TrashBatchResult>('trash_items', { scanId, nodeIds, room }),
+  undoBatch: (
+    batchId: number,
+    itemIds: number[] | null,
+    allowRename: boolean,
+    scanId: number | null,
+  ) => invoke<UndoResult>('undo_batch', { batchId, itemIds, allowRename, scanId }),
+  undoLast: (scanId: number | null) => invoke<UndoResult | null>('undo_last', { scanId }),
+  prepareEmptyTrash: () => invoke<EmptyTrashPrep>('prepare_empty_trash'),
+  emptyTrash: (token: string, scanId: number | null) =>
+    invoke<number>('empty_trash', { token, scanId }),
+  listBatches: (limit: number, offset: number) =>
+    invoke<BatchSummary[]>('list_batches', { limit, offset }),
+  getBatch: (batchId: number, page: number) => invoke<BatchPage>('get_batch', { batchId, page }),
+  getWeeklyStats: (weeks: number) => invoke<WeeklyStats>('get_weekly_stats', { weeks }),
+  exportActivityCsv: () => invoke<string>('export_activity_csv'),
+  clearActivity: () => invoke<void>('clear_activity'),
   getFdaStatus: () => invoke<FdaStatus>('get_fda_status'),
   openFdaSettings: () => invoke<void>('open_fda_settings'),
   getOverview: (id: number) => invoke<OverviewSummary>('get_overview', { id }),

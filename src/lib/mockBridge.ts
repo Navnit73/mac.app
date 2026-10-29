@@ -549,6 +549,133 @@ const handlers: Record<string, Handler> = {
       pattern_error: null,
     }
   },
+  preview_trash: (a) => {
+    const ids = a.nodeIds as number[]
+    const items = ids.map((id) => {
+      const n = nodes[id]
+      const p = pathOf(id)
+      return {
+        node_id: id,
+        name: n?.name ?? '?',
+        path: p,
+        size: n?.total ?? 0,
+        file_kind: n ? kindOf(n) : 'Other',
+        is_dir: !!n?.dir,
+        risk: p.includes('Caches') || p.includes('DerivedData') ? 'Safe' : 'Review',
+        blocked: n?.name === '.Trash' ? 'Already in the Trash.' : null,
+      }
+    })
+    const ok = items.filter((i) => !i.blocked)
+    return {
+      items,
+      allowed_count: ok.length,
+      allowed_bytes: ok.reduce((x, i) => x + i.size, 0),
+      blocked_count: items.length - ok.length,
+    }
+  },
+  trash_items: (a) => {
+    const ids = a.nodeIds as number[]
+    const bytes = ids.reduce((x, id) => x + (nodes[id]?.total ?? 0), 0)
+    return {
+      batch_id: 7,
+      moved_count: ids.length,
+      moved_bytes: bytes,
+      skipped: [
+        {
+          path: '/Users/demo/Downloads/locked.pkg',
+          reason: 'It changed after the scan. Scan again to review it.',
+        },
+      ],
+    }
+  },
+  undo_batch: () => ({ restored: 3, renamed: 0, conflicts: 0, missing: 0, failed: [] }),
+  undo_last: () => ({ restored: 3, renamed: 0, conflicts: 0, missing: 0, failed: [] }),
+  prepare_empty_trash: () => ({
+    token: 'mock',
+    duobolt_items: 14,
+    duobolt_bytes: 18.4 * GB,
+    trash_bytes: fda === 'Granted' ? 21.1 * GB : null,
+  }),
+  empty_trash: () => 14,
+  list_batches: () =>
+    [
+      [7, 1, 'Find', 3, 9.2 * GB, 3, 0, 0, 0],
+      [6, 3, 'Space', 1, 31 * GB, 0, 0, 1, 0],
+      [5, 9, 'Inspector', 12, 2.4 * GB, 4, 8, 0, 0],
+      [4, 16, 'Space', 40, 6.8 * GB, 0, 0, 40, 0],
+      [3, 30, 'Find', 2, 1.1 * GB, 0, 2, 0, 0],
+      [2, 44, 'Space', 5, 12.6 * GB, 0, 0, 5, 0],
+      [1, 70, 'Inspector', 1, 0.8 * GB, 0, 0, 1, 0],
+    ].map(([id, days, room, item_count, bytes, in_trash, restored, emptied, conflicts]) => ({
+      id,
+      created_at: NOW - (days as number) * 86400,
+      room,
+      item_count,
+      bytes,
+      in_trash,
+      restored,
+      emptied,
+      conflicts,
+    })),
+  get_batch: (a) => ({
+    batch: {
+      id: a.batchId,
+      created_at: NOW - 86400,
+      room: 'Find',
+      item_count: 3,
+      bytes: 9.2 * GB,
+      in_trash: 2,
+      restored: 0,
+      emptied: 0,
+      conflicts: 1,
+    },
+    items: [
+      {
+        id: 1,
+        original_path: '/Users/demo/Movies/Holiday 2023.mov',
+        trashed_path: '/Users/demo/.Trash/Holiday 2023.mov',
+        size: 6.1 * GB,
+        status: 'InTrash',
+        reason: null,
+      },
+      {
+        id: 2,
+        original_path: '/Users/demo/Downloads/backup-2024.zip',
+        trashed_path: '/Users/demo/.Trash/backup-2024.zip',
+        size: 2.8 * GB,
+        status: 'Conflict',
+        reason: 'Something now exists at the original location.',
+      },
+      {
+        id: 3,
+        original_path: '/Users/demo/Downloads/node-v22.pkg',
+        trashed_path: '/Users/demo/.Trash/node-v22.pkg',
+        size: 0.3 * GB,
+        status: 'InTrash',
+        reason: null,
+      },
+    ],
+    total: 3,
+    next_page: null,
+  }),
+  get_weekly_stats: () => {
+    const week = 7 * 86400
+    const start = NOW - (NOW % week) - 11 * week
+    const vals = [0, 0.8, 0, 12.6, 0, 1.1, 6.8, 0, 2.4, 31, 0, 9.2]
+    return {
+      weeks: vals.map((v, i) => ({
+        week_start: start + i * week,
+        bytes: v * GB,
+        batches: v > 0 ? 1 : 0,
+      })),
+      total_bytes: 63.9 * GB,
+      total_batches: 7,
+      biggest_bytes: 31 * GB,
+      this_week_bytes: 9.2 * GB,
+    }
+  },
+  export_activity_csv: () => '/Users/demo/Downloads/DuoBolt activity 2026-10-29.csv',
+  clear_activity: () => null,
   reveal_in_finder: () => null,
   open_node: () => null,
   quick_look: () => null,
@@ -609,6 +736,37 @@ export async function applyMockState(stores: {
       ...(findText !== null ? { text: findText } : {}),
       ...(findMode ? { mode: findMode as never } : {}),
     })
+  }
+  const review = params.get('review')
+  const empty = params.get('empty')
+  const banner = params.get('banner')
+  if (review || empty || banner) {
+    const { useTrashStore } = await import('../state/trashStore')
+    setTimeout(() => {
+      if (review) {
+        // Names keep screenshot URLs readable: ?review=Wedding.mp4,.Trash
+        const ids = review
+          .split(',')
+          .map((name) => nodes.find((n) => n.name === name)?.id)
+          .filter((id): id is number => id !== undefined)
+        void useTrashStore.getState().openReview(ids, 'Find')
+      }
+      if (empty) void useTrashStore.getState().openEmpty()
+      if (banner)
+        useTrashStore.setState({
+          banner: {
+            kind: 'moved',
+            result: {
+              batch_id: 7,
+              moved_count: 3,
+              moved_bytes: 9.2 * GB,
+              skipped: [
+                { path: '/Users/demo/Downloads/locked.pkg', reason: 'It changed after the scan.' },
+              ],
+            },
+          },
+        })
+    }, 1400)
   }
   setTimeout(() => {
     if (nav) sp.navigate(Number(nav))

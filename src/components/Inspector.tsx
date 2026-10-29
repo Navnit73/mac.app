@@ -4,6 +4,7 @@ import { formatAge, formatBytes, formatCount, formatDate } from '../lib/format'
 import { commands, describeError } from '../lib/ipc'
 import { useScanStore } from '../state/scanStore'
 import { useSpaceStore } from '../state/spaceStore'
+import { useTrashStore } from '../state/trashStore'
 import type { NodeDetails } from '../types/bindings/NodeDetails'
 import Icon from './Icon'
 import EntryIcon from './space/EntryIcon'
@@ -157,10 +158,11 @@ function InspectorBody({ scanId, nodeId }: { scanId: number; nodeId: number }) {
           <button
             type="button"
             className="btn justify-center"
-            disabled
-            title="Moving to the Trash arrives with Safe Trash (M4)"
+            disabled={!d.exists || d.protected_reason !== null}
+            title={d.protected_reason ?? 'Review, then move to the Trash (⌘⌫)'}
+            onClick={() => void useTrashStore.getState().openReview([d.id], 'Inspector')}
           >
-            <Icon name="trash" size={13} /> Move to Trash (M4)
+            <Icon name="trash" size={13} /> Move to Trash…
           </button>
           {note && (
             <p role="status" className="text-muted">

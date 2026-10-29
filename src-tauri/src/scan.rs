@@ -74,6 +74,27 @@ impl ScanManager {
         }
     }
 
+    /// Run `f` with mutable access to a finished scan (subtree rescans after a Trash move or
+    /// Undo). The Find index and cached results are dropped afterwards because the tree changed.
+    pub(crate) fn with_output_mut<T>(
+        &self,
+        id: ScanId,
+        f: impl FnOnce(&mut ScanOutput) -> Result<T, AppError>,
+    ) -> Result<T, AppError> {
+        let h = self.get(id)?;
+        let mut slot = write(&h.slot);
+        if slot.status == ScanStatus::Running {
+            return Err(AppError::InvalidInput("scan still running".into()));
+        }
+        let result = match slot.output.as_mut() {
+            Some(out) => f(out),
+            None => return Err(AppError::NotFound("scan has no data".into())),
+        };
+        slot.index = None;
+        slot.last_search = None;
+        result
+    }
+
     fn get(&self, id: ScanId) -> Result<Arc<ScanHandle>, AppError> {
         read(&self.scans)
             .get(&id)
