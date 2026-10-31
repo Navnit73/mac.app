@@ -522,6 +522,60 @@ pub fn quick_look(path: &Path) -> Result<(), AppError> {
     spawn_detached("/usr/bin/qlmanage", &["-p".as_ref(), path.as_os_str()])
 }
 
+/// Open an HTTPS link in the default browser. Anything else is refused.
+pub fn open_https_url(url: &str) -> Result<(), AppError> {
+    if !crate::telemetry::is_safe_download_url(url) {
+        return Err(AppError::InvalidInput(
+            "only https links can be opened".into(),
+        ));
+    }
+    spawn_detached("/usr/bin/open", &["--".as_ref(), url.as_ref()])
+}
+
+/// A string `sysctl` value such as `hw.model` or `kern.osproductversion`.
+pub fn sysctl_string(name: &str) -> Option<String> {
+    let cname = CString::new(name).ok()?;
+    let mut size: libc::size_t = 0;
+    // SAFETY: a null buffer asks only for the size; `cname` is NUL-terminated.
+    let rc = unsafe {
+        libc::sysctlbyname(
+            cname.as_ptr(),
+            std::ptr::null_mut(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if rc != 0 || size == 0 {
+        return None;
+    }
+    let mut buf = vec![0u8; size];
+    // SAFETY: `buf` holds `size` writable bytes and sysctl writes at most `size`.
+    let rc = unsafe {
+        libc::sysctlbyname(
+            cname.as_ptr(),
+            buf.as_mut_ptr().cast(),
+            &mut size,
+            std::ptr::null_mut(),
+            0,
+        )
+    };
+    if rc != 0 {
+        return None;
+    }
+    buf.truncate(size);
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    let s = String::from_utf8_lossy(&buf[..end]).trim().to_string();
+    (!s.is_empty()).then_some(s)
+}
+
+/// The user's locale identifier, e.g. `en_US`.
+pub fn locale_identifier() -> String {
+    objc2_foundation::NSLocale::currentLocale()
+        .localeIdentifier()
+        .to_string()
+}
+
 /// Open System Settings at Privacy & Security > Full Disk Access.
 pub fn open_full_disk_access_settings() -> Result<(), AppError> {
     spawn_detached(

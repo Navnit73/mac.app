@@ -234,7 +234,8 @@ pub async fn execute_cleanup_plan(
         return Err(AppError::InvalidInput("too many items".into()));
     }
     let reviewed: HashSet<NodeId> = node_ids.into_iter().collect();
-    blocking(app, move |app| {
+    let tm_app = app.clone();
+    let result = blocking(app, move |app| {
         let state = app.state::<CleanupState>();
         let scans = app.state::<ScanManager>();
         let roots: Vec<PathBuf> = scans.with_output(scan_id, |_, roots| {
@@ -274,5 +275,13 @@ pub async fn execute_cleanup_plan(
         }
         Ok(result)
     })
-    .await
+    .await;
+    if let Ok(r) = &result {
+        crate::telemetry::track(
+            &tm_app,
+            "cleanup.completed",
+            serde_json::json!({ "count": r.moved_count, "bytes": r.moved_bytes }),
+        );
+    }
+    result
 }

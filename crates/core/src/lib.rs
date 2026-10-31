@@ -14,6 +14,7 @@ pub mod overview;
 pub mod platform;
 pub mod scanner;
 pub mod space;
+pub mod telemetry;
 pub mod trash;
 
 pub use errors::{AppError, AppResult};

@@ -37,6 +37,12 @@ fn migrate_dir(old: &std::path::Path, new: &std::path::Path) -> std::io::Result<
 pub struct Settings {
     /// Absolute paths the user excluded from scans.
     pub exclusions: Vec<String>,
+    /// Random id for the app API, created on first launch. Not tied to the user or the Mac.
+    pub device_id: Option<String>,
+    /// "Share Anonymous Usage Data". `None` means on (the default).
+    pub share_usage: Option<bool>,
+    /// Build the user chose to skip in the update prompt.
+    pub skipped_update_build: Option<u64>,
 }
 
 impl Settings {
@@ -102,6 +108,7 @@ mod tests {
     fn globs_cover_path_and_children_and_escape_metacharacters() {
         let s = Settings {
             exclusions: vec!["/Users/me/a[1]".into()],
+            ..Default::default()
         };
         assert_eq!(
             s.exclusion_globs(),

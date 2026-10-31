@@ -391,7 +391,8 @@ pub async fn empty_trash(
     token: String,
     scan_id: Option<ScanId>,
 ) -> Result<u32, AppError> {
-    blocking(app, move |app| {
+    let tm_app = app.clone();
+    let result = blocking(app, move |app| {
         empty_trash_blocking(
             &app.state::<ScanManager>(),
             &app.state::<TrashState>(),
@@ -399,7 +400,15 @@ pub async fn empty_trash(
             scan_id,
         )
     })
-    .await
+    .await;
+    if let Ok(batches) = &result {
+        crate::telemetry::track(
+            &tm_app,
+            "trash.emptied",
+            serde_json::json!({ "batches": batches }),
+        );
+    }
+    result
 }
 
 fn empty_trash_blocking(

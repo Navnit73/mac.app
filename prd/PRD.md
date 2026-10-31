@@ -5,7 +5,7 @@
 | **Product** | MyMacStorage (working name) — native-feeling macOS disk analyzer, cleaner and duplicate finder |
 | **Platform** | macOS 14 (Sonoma) and later, Apple Silicon + Intel |
 | **Stack** | Rust core · Tauri 2 shell · React + Vite + TypeScript + Tailwind UI |
-| **Business model** | One-time purchase, $19.99, no subscription, offline license |
+| **Business model** | Free download, full access, no licence (changed 2026-10-31) |
 | **Doc status** | v1.0 — ready for implementation |
 
 ---
@@ -357,6 +357,8 @@ A right-side panel shown for any selected file, folder or app.
 
 ### 6.11 Licensing and onboarding
 
+> **2026-10-31:** Licensing is removed. The app is free with full access: no keys, no trial, no paywall. The licensing bullets below are kept for history only (see docs/decisions.md). Onboarding still applies.
+
 - **Trial:** full scanning and analysis free; cleanup actions limited (for example, total 1 GB moved, or 7 days). Exact limits are configurable constants.
 - **License key:** Ed25519-signed token (`ed25519-dalek`), verified offline. Store in macOS Keychain. Activation = paste key, validated locally; no account. Optional online check only to confirm refunds/revocation (non-blocking, fails open).
 - **Payment:** Merchant of record (Lemon Squeezy, Paddle, or Polar) on the product website (a separate static site, built with Astro); webhook issues the signed key by email.
@@ -373,7 +375,7 @@ A right-side panel shown for any selected file, folder or app.
 | Memory | Interned paths, compact node structs (`u32` ids). Budget in 5.1. |
 | Reliability | No panics across the IPC boundary; every command returns `Result`. Crash-safe SQLite (WAL). |
 | Safety | Section 5.3 invariants covered by unit and integration tests. |
-| Privacy | No network calls except optional license check and update check (user-disableable). No analytics. |
+| Privacy | No network calls except the license check and the mymacstorage.com app API: heartbeat with update offers, and anonymous feature events (counts and sizes only; "Share Anonymous Usage Data" turns events off). Never paths, names or contents. Added 2026-10-31 at the product owner's request; see docs/app-api.md. |
 | Security | Tauri capability allow-list minimal; CSP strict; no remote content; shell/sidecar allow-list exact binaries only. |
 | Compatibility | macOS 14+; Apple Silicon and Intel (universal binary). |
 | Accessibility | Keyboard, VoiceOver, reduced-motion respected, contrast AA. |
@@ -410,7 +412,7 @@ A right-side panel shown for any selected file, folder or app.
 | M6 | Cleanup + Applications | Rule engine, leftovers, uninstall |
 | M7 | ~~Monitor~~ | Removed from scope (2026-10-29) |
 | M8 | ~~Compress~~ | Removed from scope (2026-10-29) |
-| M9 | Licensing + website | Keys, checkout, onboarding, landing site |
+| M9 | Onboarding + website | Onboarding, landing site (licensing removed 2026-10-31) |
 | M10 | Hardening + release | Signing, notarization, QA matrix, `.dmg`, updater |
 
 Realistic effort: M0–M5 ≈ 6–8 weeks solo for a solid core; full scope M0–M10 ≈ 14–20 weeks. Ship a **v0.9 with Overview, Space, Find, Duplicates, Cleanup** first if time is tight.

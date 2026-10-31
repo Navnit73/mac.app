@@ -107,3 +107,16 @@ Every removal path was reviewed (Space, Duplicates, Cleanup, Applications, Undo,
 - iCloud placeholder (dataless) folders are reported and never listed, because listing one can make macOS download it.
 - Weekly Activity bars start on Monday 00:00 local time (current UTC offset). Totals cover every batch, not only the newest 500.
 - After a Trash move, the moved items are dropped from the scan directly instead of rescanning their parent folder. Restores still rescan the parent.
+
+## App API: usage stats and updates (2026-10-31)
+- At the product owner's request the app now talks to the mymacstorage.com app API: a heartbeat every 60 s (live users, update offers), batched feature events, and a manual update check. This replaces the PRD's "no analytics" rule; CLAUDE.md invariant 3 and the PRD privacy row were updated. Details in `docs/app-api.md`.
+- The Swift drop-in client from the integration guide was ported to Rust because the app is Tauri: payload rules and the event queue in `core::telemetry` (tested), HTTP in `src-tauri/src/telemetry.rs`, the prompt in `UpdateDialog`.
+- The API key is compiled in from `MMS_APP_API_KEY` (shell environment, else the gitignored `.env` read by `src-tauri/build.rs`) and never committed. A build without it makes no network calls at all (dev builds stay offline).
+- Events are sent only from Rust-defined names and from room opens; props are counts, sizes, durations and flags. Paths and names never go into props. "Share Anonymous Usage Data" (app menu, on by default as in the guide) stops events and drops unsent ones. The heartbeat keeps running so update offers still arrive, which means an opted-out copy still counts as live; this is what the guide recommends.
+- Only the download link of an update the server offered in this run can be opened, and only if it is `https://`. The UI passes a build number, never a URL.
+- Licence status is always sent as `false` (there is no licensing; see below).
+- `CFBundleVersion` comes from `bundle.macOS.bundleVersion` in `tauri.conf.json` and must be a whole number that goes up with every release; the server compares it.
+
+## No licensing (2026-10-31)
+- Product owner's decision: MyMacStorage is free to download and use with full access. No licence keys, no activation, no trial limits, no paywall. This replaces PRD 6.11 and the licensing part of M9.
+- `core::license::is_active()` stays and returns `false`; it only fills the heartbeat's `licensed` field, which the server requires. Nothing in the app is gated on it.

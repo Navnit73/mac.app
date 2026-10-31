@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { AppError } from '../types/bindings/AppError'
+import type { AppUpdate } from '../types/bindings/AppUpdate'
 import type { ChartMode } from '../types/bindings/ChartMode'
 import type { ChartNode } from '../types/bindings/ChartNode'
 import type { ChildrenPage } from '../types/bindings/ChildrenPage'
@@ -147,6 +148,15 @@ export const commands = {
     quit: boolean,
     scanId: number | null,
   ) => invoke<TrashBatchResult>('uninstall_app', { appId, bundleId, related, quit, scanId }),
+
+  /** Feature use for the anonymous usage stats. Props: counts, sizes and flags only. */
+  trackEvent: (name: string, props?: Record<string, string | number | boolean | null>) =>
+    invoke<void>('track_event', { name, props: props ?? null }),
+  getOfferedUpdate: () => invoke<AppUpdate | null>('get_offered_update'),
+  checkForUpdates: () => invoke<AppUpdate | null>('check_for_updates'),
+  openUpdateDownload: (build: number) => invoke<void>('open_update_download', { build }),
+  skipUpdate: (build: number) => invoke<void>('skip_update', { build }),
+  quitApp: () => invoke<void>('quit_app'),
 }
 
 export const events = {
@@ -162,6 +172,11 @@ export const events = {
     listen<DupDoneEvent>('dupes://done', (ev) => handler(ev.payload)),
   onAppsDone: (handler: (e: AppsDoneEvent) => void): Promise<UnlistenFn> =>
     listen<AppsDoneEvent>('apps://done', (ev) => handler(ev.payload)),
+  onUpdateAvailable: (handler: (e: AppUpdate) => void): Promise<UnlistenFn> =>
+    listen<AppUpdate>('app://update-available', (ev) => handler(ev.payload)),
+  /** The "Check for Updates…" menu item. */
+  onCheckUpdates: (handler: () => void): Promise<UnlistenFn> =>
+    listen('app://check-updates', () => handler()),
 }
 
 export function describeError(e: unknown): string {

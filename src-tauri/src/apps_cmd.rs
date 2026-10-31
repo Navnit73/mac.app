@@ -284,7 +284,8 @@ pub async fn uninstall_app(
     quit: bool,
     scan_id: Option<ScanId>,
 ) -> Result<TrashBatchResult, AppError> {
-    blocking(app, move |app| {
+    let tm_app = app.clone();
+    let result = blocking(app, move |app| {
         let state = app.state::<AppsState>();
         let (outcome, moved) = state.with(|ix| {
             let a = ix.app(app_id)?.clone();
@@ -330,5 +331,13 @@ pub async fn uninstall_app(
         }
         Ok(result)
     })
-    .await
+    .await;
+    if let Ok(r) = &result {
+        crate::telemetry::track(
+            &tm_app,
+            "app.uninstalled",
+            serde_json::json!({ "count": r.moved_count, "bytes": r.moved_bytes }),
+        );
+    }
+    result
 }

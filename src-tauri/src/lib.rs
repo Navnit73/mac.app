@@ -7,6 +7,7 @@ mod cleanup_cmd;
 mod dupes_cmd;
 mod scan;
 mod settings;
+mod telemetry;
 mod trash_cmd;
 mod views;
 
@@ -58,6 +59,10 @@ pub fn run() {
             std::thread::spawn(move || {
                 trash_cmd::reconcile_on_launch(&handle.state::<trash_cmd::TrashState>());
             });
+            telemetry::start(app.handle());
+            if let Err(e) = install_menu(app.handle()) {
+                tracing::warn!("could not build the app menu: {e}");
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -115,11 +120,70 @@ pub fn run() {
             apps_cmd::list_apps,
             apps_cmd::get_app_details,
             apps_cmd::app_icon,
-            apps_cmd::uninstall_app
+            apps_cmd::uninstall_app,
+            telemetry::track_event,
+            telemetry::get_offered_update,
+            telemetry::check_for_updates,
+            telemetry::open_update_download,
+            telemetry::skip_update,
+            telemetry::quit_app
         ])
-        .run(tauri::generate_context!());
-    if let Err(e) = result {
-        tracing::error!("tauri failed: {e}");
-        std::process::exit(1);
+        .build(tauri::generate_context!());
+    match result {
+        Ok(app) => app.run(|handle, event| {
+            if let tauri::RunEvent::Exit = event {
+                telemetry::flush_on_quit(handle);
+            }
+        }),
+        Err(e) => {
+            tracing::error!("tauri failed: {e}");
+            std::process::exit(1);
+        }
     }
+}
+
+const MENU_CHECK_UPDATES: &str = "check_updates";
+const MENU_SHARE_USAGE: &str = "share_usage";
+
+/// The standard macOS menu plus "Check for Updates…" and "Share Anonymous Usage Data" under
+/// the app menu, right after "About".
+fn install_menu(app: &AppHandle) -> tauri::Result<()> {
+    use tauri::menu::{CheckMenuItem, Menu, MenuItem, MenuItemKind, PredefinedMenuItem};
+    use tauri::Manager;
+
+    let menu = Menu::default(app)?;
+    let share = app
+        .try_state::<telemetry::Telemetry>()
+        .is_some_and(|t| t.share_usage());
+    if let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.into_iter().next() {
+        let check = MenuItem::with_id(
+            app,
+            MENU_CHECK_UPDATES,
+            "Check for Updates…",
+            true,
+            None::<&str>,
+        )?;
+        let share_item = CheckMenuItem::with_id(
+            app,
+            MENU_SHARE_USAGE,
+            "Share Anonymous Usage Data",
+            true,
+            share,
+            None::<&str>,
+        )?;
+        app_menu.insert(&check, 1)?;
+        app_menu.insert(&share_item, 2)?;
+        app_menu.insert(&PredefinedMenuItem::separator(app)?, 3)?;
+        app.on_menu_event(move |app, event| {
+            if event.id() == MENU_CHECK_UPDATES {
+                let _ = app.emit(telemetry::CHECK_UPDATES_EVENT, ());
+            } else if event.id() == MENU_SHARE_USAGE {
+                // The menu toggles the check mark itself; read the new state.
+                let on = share_item.is_checked().unwrap_or(true);
+                telemetry::set_share_usage(app, on);
+            }
+        });
+    }
+    app.set_menu(menu)?;
+    Ok(())
 }

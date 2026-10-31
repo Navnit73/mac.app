@@ -8,7 +8,7 @@ Stack: Rust core crate + Tauri 2 shell + React 18 + Vite + TypeScript + Tailwind
 ## Non-negotiable invariants
 1. Nothing is ever permanently deleted except the explicit "Empty Trash" action. All removals go through `core::trash::move_items`.
 2. The UI never touches the filesystem. All file work happens in Rust. The UI only calls Tauri commands and listens to events.
-3. No network calls except the optional license check and update check. No analytics. Never upload paths, names or contents.
+3. No network calls except the mymacstorage.com app API (heartbeat, anonymous feature events, update check; see docs/app-api.md). Events carry counts and sizes only, and can be turned off. Never upload paths, names or contents.
 4. Never follow symlinks during scans. Never operate outside declared roots. Respect the protected-path denylist.
 5. Before any destructive action: re-stat (and re-hash for duplicates). Preserve at least one copy per duplicate group.
 6. No `unwrap()`/`expect()` in non-test code. Commands return `Result<T, AppError>`. No panics across IPC.

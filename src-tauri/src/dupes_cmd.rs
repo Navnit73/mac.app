@@ -238,7 +238,8 @@ pub async fn remove_duplicates(
     clones: bool,
 ) -> Result<TrashBatchResult, AppError> {
     // Re-hashing every selected copy can take minutes: keep it off the async runtime.
-    crate::cleanup_cmd::blocking(app, move |app| {
+    let tm_app = app.clone();
+    let result = crate::cleanup_cmd::blocking(app, move |app| {
         remove_blocking(
             &app.state::<ScanManager>(),
             &app.state::<DupState>(),
@@ -247,7 +248,15 @@ pub async fn remove_duplicates(
             clones,
         )
     })
-    .await
+    .await;
+    if let Ok(r) = &result {
+        crate::telemetry::track(
+            &tm_app,
+            "duplicates.deleted",
+            serde_json::json!({ "count": r.moved_count, "bytes": r.moved_bytes, "clones": clones }),
+        );
+    }
+    result
 }
 
 fn remove_blocking(

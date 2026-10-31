@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import EmptyTrashDialog from './components/EmptyTrashDialog'
 import FdaBanner from './components/FdaBanner'
 import Inspector from './components/Inspector'
@@ -8,6 +8,7 @@ import ReviewSheet from './components/ReviewSheet'
 import Sidebar from './components/Sidebar'
 import StatusFooter from './components/StatusFooter'
 import Toolbar from './components/Toolbar'
+import UpdateDialog from './components/UpdateDialog'
 import Activity from './rooms/Activity'
 import Applications from './rooms/Applications'
 import Cleanup from './rooms/Cleanup'
@@ -21,8 +22,10 @@ import { initAppsListeners } from './state/appsStore'
 import { initDupesListeners } from './state/dupesStore'
 import { useFindStore } from './state/findStore'
 import { initScanListeners } from './state/scanStore'
+import { initUpdateListeners } from './state/updateStore'
 import { useSpaceStore } from './state/spaceStore'
 import { useTrashStore } from './state/trashStore'
+import { commands } from './lib/ipc'
 
 const ROOM_VIEWS: Record<string, React.ReactElement> = {
   '/overview': <Overview />,
@@ -39,6 +42,16 @@ export default function App() {
   useEffect(() => initScanListeners(), [])
   useEffect(() => initDupesListeners(), [])
   useEffect(() => initAppsListeners(), [])
+  useEffect(() => initUpdateListeners(), [])
+
+  // Anonymous usage stats: which rooms get opened (e.g. `duplicates.opened`). Room name only.
+  const { pathname } = useLocation()
+  useEffect(() => {
+    const room = pathname.split('/')[1]
+    if (room && ROOMS.some((r) => r.path === `/${room}`)) {
+      void commands.trackEvent(`${room}.opened`).catch(() => undefined)
+    }
+  }, [pathname])
 
   // ⌘F: Find. ⌘⌫: review the selection for the Trash. ⌘Z: undo the last batch.
   useEffect(() => {
@@ -105,6 +118,7 @@ export default function App() {
       </div>
       <ReviewSheet />
       <EmptyTrashDialog />
+      <UpdateDialog />
       <div className="pointer-events-none fixed inset-x-0 bottom-10 z-30 flex justify-center">
         <ResultBanner />
       </div>

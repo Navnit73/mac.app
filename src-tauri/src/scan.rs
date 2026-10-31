@@ -194,6 +194,11 @@ pub async fn start_scan(
         (id, handle)
     };
     let (id, handle) = id;
+    crate::telemetry::track(
+        &app,
+        "scan.started",
+        serde_json::json!({ "roots": roots.len() }),
+    );
 
     std::thread::spawn(move || {
         let progress_app = app.clone();
@@ -220,6 +225,19 @@ pub async fn start_scan(
                     ScanStatus::Done
                 };
                 let summary = out.summary.clone();
+                crate::telemetry::track(
+                    &app,
+                    if summary.cancelled {
+                        "scan.cancelled"
+                    } else {
+                        "scan.completed"
+                    },
+                    serde_json::json!({
+                        "files": summary.files,
+                        "bytes": summary.total_alloc,
+                        "seconds": summary.elapsed_ms / 1000,
+                    }),
+                );
                 let mut slot = write(&handle.slot);
                 slot.status = status.clone();
                 slot.summary = Some(summary.clone());
