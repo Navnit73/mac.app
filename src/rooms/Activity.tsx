@@ -324,8 +324,8 @@ export default function Activity() {
           </h2>
           <p className="text-muted">
             The list of cleanups is removed from this Mac. Files are not touched, but items still in
-            the Trash can no longer be undone from MyMacStorage (you can still drag them out of the Trash
-            yourself).
+            the Trash can no longer be undone from MyMacStorage (you can still drag them out of the
+            Trash yourself).
           </p>
           <div className="flex justify-end gap-2">
             <button

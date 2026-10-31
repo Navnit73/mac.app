@@ -14,10 +14,12 @@ use mymacstorage_core::models::{
     TrashPreviewItem, UndoResult, WeeklyStats,
 };
 use mymacstorage_core::scanner::bulk::BulkReader;
-use mymacstorage_core::scanner::{rescan_subtree, ScanOutput};
+use mymacstorage_core::scanner::{forget_nodes, rescan_subtree, ScanOutput};
 use mymacstorage_core::trash::{self, Candidate, Context, Expected, MacTrash, MAX_BATCH};
 use mymacstorage_core::{overview, platform, space, AppError};
-use tauri::State;
+use tauri::{AppHandle, Manager, State};
+
+use crate::cleanup_cmd::blocking;
 
 use crate::scan::ScanManager;
 
@@ -139,8 +141,21 @@ fn risk_for(path: &Path) -> Risk {
 
 /// Refresh the scan below the folders that changed, so totals and search stay true.
 pub(crate) fn refresh(out: &mut ScanOutput, paths: &[PathBuf]) {
-    let mut ids: Vec<NodeId> = Vec::new();
+    // Items the scan knows that are now gone (moved to the Trash) are dropped directly. Only
+    // the rest (restored items, replaced clones) need their parent folder read again.
+    let mut gone: Vec<NodeId> = Vec::new();
+    let mut changed: Vec<&PathBuf> = Vec::new();
     for p in paths {
+        match out.tree.find_path(p) {
+            Some(id) if std::fs::symlink_metadata(p).is_err() => gone.push(id),
+            _ => changed.push(p),
+        }
+    }
+    if !gone.is_empty() {
+        forget_nodes(out, &gone);
+    }
+    let mut ids: Vec<NodeId> = Vec::new();
+    for p in changed {
         // Walk up until a folder the scan knows about (a restore may recreate folders).
         let mut cur = p.parent();
         while let Some(dir) = cur {
@@ -195,12 +210,20 @@ pub async fn preview_trash(
                     name,
                     is_dir,
                     space::file_kind(out.tree.name(id), is_dir, pkg),
-                    cleanup.risk_of(scan_id, id),
                 )
             })
             .collect();
         Ok((items, roots.iter().map(PathBuf::from).collect::<Vec<_>>()))
     })?;
+    // Ask Cleanup for rule risks only after the scan lock is released: Cleanup takes its own
+    // lock and then the scan lock, so holding both here in the other order could deadlock.
+    let cands: Vec<_> = cands
+        .into_iter()
+        .map(|(c, size, id, name, is_dir, kind)| {
+            let risk = cleanup.risk_of(scan_id, id);
+            (c, size, id, name, is_dir, kind, risk)
+        })
+        .collect();
     tauri::async_runtime::spawn_blocking(move || {
         let ctx = Context::new(roots);
         let mut preview = TrashPreview {
@@ -237,14 +260,33 @@ pub async fn preview_trash(
 
 #[tauri::command]
 pub async fn trash_items(
-    scans: State<'_, ScanManager>,
-    trash_state: State<'_, TrashState>,
+    app: AppHandle,
     scan_id: ScanId,
     node_ids: Vec<NodeId>,
     room: Room,
 ) -> Result<TrashBatchResult, AppError> {
+    // Moving and rescanning touch the disk: keep them off the async runtime.
+    blocking(app, move |app| {
+        trash_items_blocking(
+            &app.state::<ScanManager>(),
+            &app.state::<TrashState>(),
+            scan_id,
+            &node_ids,
+            room,
+        )
+    })
+    .await
+}
+
+fn trash_items_blocking(
+    scans: &ScanManager,
+    trash_state: &TrashState,
+    scan_id: ScanId,
+    node_ids: &[NodeId],
+    room: Room,
+) -> Result<TrashBatchResult, AppError> {
     let (cands, roots) = scans.with_output(scan_id, |out, roots| {
-        let c: Vec<(Candidate, u64)> = candidates(&out.tree, &node_ids)?
+        let c: Vec<(Candidate, u64)> = candidates(&out.tree, node_ids)?
             .into_iter()
             .map(|(c, size, _)| (c, size))
             .collect();
@@ -265,8 +307,28 @@ pub async fn trash_items(
 
 #[tauri::command]
 pub async fn undo_batch(
-    scans: State<'_, ScanManager>,
-    trash_state: State<'_, TrashState>,
+    app: AppHandle,
+    batch_id: i64,
+    item_ids: Option<Vec<i64>>,
+    allow_rename: bool,
+    scan_id: Option<ScanId>,
+) -> Result<UndoResult, AppError> {
+    blocking(app, move |app| {
+        undo_blocking(
+            &app.state::<ScanManager>(),
+            &app.state::<TrashState>(),
+            batch_id,
+            item_ids,
+            allow_rename,
+            scan_id,
+        )
+    })
+    .await
+}
+
+fn undo_blocking(
+    scans: &ScanManager,
+    trash_state: &TrashState,
     batch_id: i64,
     item_ids: Option<Vec<i64>>,
     allow_rename: bool,
@@ -288,16 +350,17 @@ pub async fn undo_batch(
 /// ⌘Z: undo the most recent batch that still has items in the Trash.
 #[tauri::command]
 pub async fn undo_last(
-    scans: State<'_, ScanManager>,
-    trash_state: State<'_, TrashState>,
+    app: AppHandle,
     scan_id: Option<ScanId>,
 ) -> Result<Option<UndoResult>, AppError> {
-    let Some(batch) = trash_state.with_store(|s| s.last_undoable())? else {
-        return Ok(None);
-    };
-    undo_batch(scans, trash_state, batch, None, false, scan_id)
-        .await
-        .map(Some)
+    blocking(app, move |app| {
+        let (scans, trash_state) = (app.state::<ScanManager>(), app.state::<TrashState>());
+        let Some(batch) = trash_state.with_store(|s| s.last_undoable())? else {
+            return Ok(None);
+        };
+        undo_blocking(&scans, &trash_state, batch, None, false, scan_id).map(Some)
+    })
+    .await
 }
 
 fn random_token() -> Result<String, AppError> {
@@ -324,16 +387,32 @@ pub async fn prepare_empty_trash(
 /// The only permanent deletion in the app. Requires the token from `prepare_empty_trash`.
 #[tauri::command]
 pub async fn empty_trash(
-    scans: State<'_, ScanManager>,
-    trash_state: State<'_, TrashState>,
+    app: AppHandle,
     token: String,
+    scan_id: Option<ScanId>,
+) -> Result<u32, AppError> {
+    blocking(app, move |app| {
+        empty_trash_blocking(
+            &app.state::<ScanManager>(),
+            &app.state::<TrashState>(),
+            &token,
+            scan_id,
+        )
+    })
+    .await
+}
+
+fn empty_trash_blocking(
+    scans: &ScanManager,
+    trash_state: &TrashState,
+    token: &str,
     scan_id: Option<ScanId>,
 ) -> Result<u32, AppError> {
     let valid = {
         let mut guard = lock(&trash_state.token);
         let ok = guard
             .as_ref()
-            .is_some_and(|(t, at)| *t == token && at.elapsed() < TOKEN_TTL);
+            .is_some_and(|(t, at)| t == token && at.elapsed() < TOKEN_TTL);
         // A token works once, whatever the outcome.
         *guard = None;
         ok
@@ -343,9 +422,7 @@ pub async fn empty_trash(
             "Confirmation expired. Open Empty Trash again.".into(),
         ));
     }
-    tauri::async_runtime::spawn_blocking(trash::empty_trash_via_finder)
-        .await
-        .map_err(|e| AppError::Internal(e.to_string()))??;
+    trash::empty_trash_via_finder()?;
     let emptied = trash_state.with_store(|s| s.mark_all_emptied())?;
     if let Some(id) = scan_id {
         let trash_dir = home().join(".Trash");
@@ -383,7 +460,8 @@ pub async fn get_weekly_stats(
     trash_state: State<'_, TrashState>,
     weeks: u32,
 ) -> Result<WeeklyStats, AppError> {
-    trash_state.with_store(|s| s.weekly_stats(weeks, now()))
+    let t = now();
+    trash_state.with_store(|s| s.weekly_stats(weeks, t, platform::utc_offset(t)))
 }
 
 /// Writes a CSV into Downloads (never overwriting) and reveals it. Returns the file path.

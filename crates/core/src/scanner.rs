@@ -273,8 +273,39 @@ pub fn rescan_subtree(
         }
     }
     out.tree.aggregate();
-    out.summary = summarize(&out.tree, &out.report, cancel, start);
+    refresh_summary(out);
     Ok(())
+}
+
+/// Drop nodes that are gone from disk (moved to the Trash) without walking any folder: they and
+/// everything below them are tombstoned and totals are recomputed. Much cheaper than rescanning
+/// their parent, which may be the whole scan root.
+pub fn forget_nodes(out: &mut ScanOutput, nodes: &[NodeId]) {
+    for &id in nodes {
+        if id == ROOT || out.tree.node(id).is_none() {
+            continue;
+        }
+        let path = out.tree.path(id);
+        out.report.remove_under(&lossy(&path));
+        out.tree.clear_children(id);
+        if let Some(n) = out.tree.node_mut(id) {
+            n.flags |= flags::DELETED;
+        }
+    }
+    out.tree.aggregate();
+    refresh_summary(out);
+}
+
+/// Recount after the tree changed. How long the scan took and whether it was cancelled describe
+/// the original scan and are kept.
+fn refresh_summary(out: &mut ScanOutput) {
+    let (files, dirs) = out.tree.live_counts();
+    let root = out.tree.node(ROOT);
+    out.summary.files = files;
+    out.summary.dirs = dirs;
+    out.summary.total_alloc = root.map_or(0, |n| n.total_alloc);
+    out.summary.total_logical = root.map_or(0, |n| n.total_logical);
+    out.summary.skipped = out.report.len() as u64;
 }
 
 fn summarize(tree: &Tree, report: &ScanReport, cancel: &AtomicBool, start: Instant) -> ScanSummary {
@@ -492,7 +523,8 @@ fn insert(
 
     if is_dir {
         let Some(p) = child_path else { return };
-        if cancel.load(Ordering::Relaxed) {
+        // Never list an iCloud placeholder folder: reading it can make macOS download it.
+        if dataless || cancel.load(Ordering::Relaxed) {
             return;
         }
         if policy.skip_prefixes.iter().any(|pre| p.starts_with(pre))
@@ -709,6 +741,55 @@ mod tests {
         rescan_subtree(&after, &mut out, d, &cancel, &mut |_| {}).unwrap();
         assert!(find(&out, "/r/d").is_none());
         assert_eq!(out.summary.files, 0);
+    }
+
+    #[test]
+    fn dataless_folders_are_never_listed() {
+        let mut fs = MockFs::new();
+        fs.add_dir("/r", 1)
+            .add_dataless_dir("/r/icloud")
+            .add_file("/r/icloud/remote.bin", 4096, 1);
+        let out = run(&fs, &["/r"], &ScanOptions::default());
+        assert!(find(&out, "/r/icloud").is_some());
+        assert!(find(&out, "/r/icloud/remote.bin").is_none());
+        assert!(out
+            .report
+            .items()
+            .iter()
+            .any(|s| s.path == "/r/icloud" && s.reason == SkipReason::Dataless));
+    }
+
+    #[test]
+    fn forget_nodes_drops_subtree_and_keeps_scan_timing() {
+        let mut fs = MockFs::new();
+        fs.add_dir("/r", 1)
+            .add_dir("/r/d", 1)
+            .add_file("/r/d/a", 4096, 1)
+            .add_file("/r/keep", 8192, 1);
+        let mut out = run(&fs, &["/r"], &ScanOptions::default());
+        out.summary.elapsed_ms = 1234;
+        out.summary.cancelled = true;
+        let (d, _) = find(&out, "/r/d").unwrap();
+        forget_nodes(&mut out, &[d]);
+        assert!(find(&out, "/r/d").is_none());
+        assert!(find(&out, "/r/d/a").is_none());
+        assert_eq!(out.summary.files, 1);
+        assert_eq!(
+            out.summary.total_alloc,
+            out.tree.node(ROOT).unwrap().total_alloc
+        );
+        assert_eq!(
+            (out.summary.elapsed_ms, out.summary.cancelled),
+            (1234, true)
+        );
+
+        // A rescan keeps the original timing too.
+        let (r, _) = find(&out, "/r").unwrap();
+        rescan_subtree(&fs, &mut out, r, &AtomicBool::new(false), &mut |_| {}).unwrap();
+        assert_eq!(
+            (out.summary.elapsed_ms, out.summary.cancelled),
+            (1234, true)
+        );
     }
 
     #[test]

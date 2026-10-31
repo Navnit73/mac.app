@@ -509,6 +509,12 @@ fn match_pattern(
     if claims.is_claimed_or_inside(tree, root_id) {
         return;
     }
+    // Items must sit strictly inside the folder they are confined to. A literal pattern (no
+    // wildcard) matches its root itself, so it is confined to the folder that holds it.
+    let confine: PathBuf = match (&pat.rest, pat.root.parent()) {
+        (None, Some(parent)) => parent.to_path_buf(),
+        _ => pat.root.clone(),
+    };
     let mut accept = |claims: &mut Claims, id: NodeId, path: PathBuf| {
         let Some(n) = tree.node(id) else { return };
         let kind_ok = match rule.kind {
@@ -546,7 +552,7 @@ fn match_pattern(
             tree,
             id,
             path,
-            &pat.root,
+            &confine,
             Source::Rule(idx),
             rule.category,
             app,
@@ -1407,6 +1413,46 @@ mod tests {
         let (o, moved) = s.execute(&r, &Context::new(vec![h.clone()]), &trash, &|_| false);
         assert!(moved.is_empty());
         assert_eq!(o.skipped.len(), 1);
+        assert!(outside.join("precious.txt").exists());
+    }
+
+    #[test]
+    fn literal_rule_paths_are_cleaned_and_a_linked_literal_is_not() {
+        use std::os::unix::fs::symlink;
+        let tmp = tempfile::tempdir().unwrap();
+        let base = tmp.path().canonicalize().unwrap();
+        let h = base.join("home");
+        let outside = base.join("outside");
+        std::fs::create_dir_all(&outside).unwrap();
+        std::fs::write(outside.join("precious.txt"), vec![1u8; 9000]).unwrap();
+        // `~/Library/Caches/Homebrew` is a literal path in package-caches.
+        let brew = h.join("Library/Caches/Homebrew");
+        std::fs::create_dir_all(&brew).unwrap();
+        std::fs::write(brew.join("bottle.tar.gz"), vec![2u8; 9000]).unwrap();
+        // `~/.npm/_cacache` is another literal path; make it a link to the outside folder.
+        std::fs::create_dir_all(h.join(".npm")).unwrap();
+        symlink(&outside, h.join(".npm/_cacache")).unwrap();
+
+        let out = scan(
+            &StdReader,
+            std::slice::from_ref(&h),
+            &Default::default(),
+            &AtomicBool::new(false),
+            &mut |_| {},
+        )
+        .unwrap();
+        let r = Rules::bundled(&h).unwrap();
+        let a = analyze(&out.tree, &r, &h, NOW, &[], &HashSet::new());
+        let paths: Vec<&Path> = a.items.iter().map(|i| i.path.as_path()).collect();
+        assert_eq!(paths, [brew.as_path()]);
+
+        let mut s = Session::new(a, &r, None);
+        s.select_category(&r, None, SelectMode::All);
+        let trash = FakeTrash::new(&base).unwrap();
+        let (o, moved) = s.execute(&r, &Context::new(vec![h.clone()]), &trash, &|_| false);
+        assert!(o.skipped.is_empty(), "{:?}", o.skipped);
+        assert_eq!(moved.len(), 1);
+        assert!(!brew.exists());
         assert!(outside.join("precious.txt").exists());
     }
 

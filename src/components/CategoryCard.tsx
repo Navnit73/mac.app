@@ -47,7 +47,7 @@ export default function CategoryCard({ c }: { c: CategorySummary }) {
             <span className="num text-xs text-muted">{formatCount(c.items)} items</span>
           </>
         ) : (
-          <span className="badge bg-track text-muted">Coming soon</span>
+          <span className="badge bg-track text-muted">Not checked yet</span>
         )}
       </div>
     </button>

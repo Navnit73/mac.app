@@ -33,11 +33,13 @@ impl ScanReport {
 
     /// Drop entries at or below `prefix` (used before a subtree rescan).
     pub fn remove_under(&mut self, prefix: &str) {
+        // A prefix ending in `/` (the `/` root itself) already ends at a boundary.
+        let at_boundary = prefix.ends_with('/');
         self.skipped.retain(|s| {
             !(s.path == prefix
                 || s.path
                     .strip_prefix(prefix)
-                    .is_some_and(|rest| rest.starts_with('/')))
+                    .is_some_and(|rest| at_boundary || rest.starts_with('/')))
         });
     }
 
@@ -81,5 +83,10 @@ mod tests {
         r.remove_under("/a/b");
         assert_eq!(r.len(), 1);
         assert_eq!(r.items()[0].path, "/a/bc");
+
+        let mut r = ScanReport::default();
+        r.push("/a".into(), SkipReason::Excluded);
+        r.remove_under("/");
+        assert_eq!(r.len(), 0);
     }
 }

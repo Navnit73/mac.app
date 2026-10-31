@@ -92,6 +92,9 @@ impl ScanManager {
             Some(out) => f(out),
             None => return Err(AppError::NotFound("scan has no data".into())),
         };
+        if let Some(out) = slot.output.as_ref() {
+            slot.summary = Some(out.summary.clone());
+        }
         slot.index = None;
         slot.last_search = None;
         slot.version += 1;
@@ -304,6 +307,8 @@ pub async fn rescan_subtree(
         slot.index = None;
         slot.last_search = None;
         slot.summary = Some(summary.clone());
+        // Views cached per version (Cleanup, Overview) must rebuild.
+        slot.version += 1;
         Ok(summary)
     })
     .await

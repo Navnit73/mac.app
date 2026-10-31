@@ -98,6 +98,8 @@ export const useDupesStore = create<DupesStore>((set, get) => ({
         forScan: id,
         phase: 'idle',
         editing: false,
+        // The scope is a node id of the old scan; in the new one it names another folder.
+        options: { ...get().options, scope: null },
         summary: null,
         progress: null,
         savings: NO_SAVINGS,

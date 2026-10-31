@@ -51,10 +51,29 @@ function Chart({ scanId }: { scanId: number }) {
   const selectedId = useSpaceStore((s) => s.selectedId)
   const navigate = useSpaceStore((s) => s.navigate)
   const select = useSpaceStore((s) => s.select)
-  const goBack = useSpaceStore((s) => s.goBack)
   const dataVersion = useScanStore((s) => s.dataVersion)
   const [data, setData] = useState<ChartNode | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // The centre of the sunburst goes up to the parent folder, like the breadcrumb's Up button.
+  // Keyed by the folder it was fetched for, so a stale answer never applies to another folder.
+  const [up, setUp] = useState<{ of: number; parent: number | null } | null>(null)
+  const parentId = up !== null && up.of === currentId ? up.parent : null
+
+  useEffect(() => {
+    if (currentId === null) return
+    let live = true
+    commands
+      .getBreadcrumb(scanId, currentId)
+      .then(
+        (c) =>
+          live &&
+          setUp({ of: currentId, parent: c.length > 1 ? (c[c.length - 2]?.id ?? null) : null }),
+      )
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [scanId, currentId])
 
   useEffect(() => {
     if (currentId === null) return
@@ -90,7 +109,7 @@ function Chart({ scanId }: { scanId: number }) {
             selectedId={selectedId}
             onZoom={navigate}
             onSelect={select}
-            onUp={goBack}
+            onUp={parentId !== null ? () => navigate(parentId) : undefined}
           />
         ) : (
           <Treemap

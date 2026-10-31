@@ -54,6 +54,17 @@ impl MockFs {
         self
     }
 
+    /// A directory whose contents live only in iCloud (`SF_DATALESS`). Its children are listed
+    /// but must never be read by the scanner.
+    pub fn add_dataless_dir(&mut self, path: &str) -> &mut Self {
+        let p = PathBuf::from(path);
+        let mut e = entry(file_name(&p), NodeKind::Dir, 0, 1, self.inode());
+        e.st_flags = super::reader::st_flags::SF_DATALESS;
+        self.dirs.entry(p.clone()).or_default();
+        self.attach(&p, e);
+        self
+    }
+
     pub fn add_file(&mut self, path: &str, size: u64, dev: u32) -> &mut Self {
         let p = PathBuf::from(path);
         let e = entry(file_name(&p), NodeKind::File, size, dev, self.inode());

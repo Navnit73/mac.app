@@ -48,22 +48,29 @@ export default function App() {
       const typing =
         !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)
       const key = e.key.toLowerCase()
+      const trash = useTrashStore.getState()
+      // A Review or Empty Trash dialog is open: its own buttons decide, not background shortcuts.
+      const dialogOpen = trash.review !== null || trash.empty !== null
       if (key === 'f') {
         e.preventDefault()
         navigate('/find')
         useFindStore.getState().requestFocus()
-      } else if (key === 'backspace' && !typing) {
+      } else if (key === 'backspace' && !typing && !dialogOpen) {
+        // Only rooms whose selection the Inspector shows; elsewhere ⌘⌫ would act on a
+        // selection the user cannot see.
         const onFind = window.location.hash.startsWith('#/find')
+        const onSpace = window.location.hash.startsWith('#/space')
+        if (!onFind && !onSpace) return
         const findSel = useFindStore.getState().selected
         const spaceSel = useSpaceStore.getState().selectedId
-        const ids = onFind && findSel.length > 0 ? findSel : spaceSel !== null ? [spaceSel] : []
+        const ids = onFind ? findSel : spaceSel !== null ? [spaceSel] : []
         if (ids.length > 0) {
           e.preventDefault()
-          void useTrashStore.getState().openReview(ids, onFind ? 'Find' : 'Space')
+          void trash.openReview(ids, onFind ? 'Find' : 'Space')
         }
-      } else if (key === 'z' && !e.shiftKey && !typing) {
+      } else if (key === 'z' && !e.shiftKey && !typing && !dialogOpen) {
         e.preventDefault()
-        void useTrashStore.getState().undoLast()
+        void trash.undoLast()
       }
     }
     window.addEventListener('keydown', onKey)

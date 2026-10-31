@@ -121,7 +121,7 @@ impl CleanupState {
 }
 
 /// Run heavy work off the async runtime with access to managed state.
-async fn blocking<T: Send + 'static>(
+pub(crate) async fn blocking<T: Send + 'static>(
     app: AppHandle,
     f: impl FnOnce(&AppHandle) -> Result<T, AppError> + Send + 'static,
 ) -> Result<T, AppError> {

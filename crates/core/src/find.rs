@@ -91,16 +91,20 @@ struct Matched {
 }
 
 fn match_names(idx: &SearchIndex, q: &SearchQuery) -> Result<Matched, String> {
-    let text = normalize(q.text.as_bytes());
+    // Regex and glob patterns keep their case: lowercasing would turn `\D` into `\d`, `\W`
+    // into `\w` and so on. Both builders are case-insensitive already.
+    let text = match q.mode {
+        SearchMode::Regex | SearchMode::Glob => q.text.nfc().collect::<String>(),
+        _ => normalize(q.text.as_bytes()),
+    };
     let mut hits: Vec<(NodeId, u8)> = Vec::new();
 
     if text.is_empty() {
+        // Deleted nodes have empty names; leave them out.
         hits.extend(
-            idx.starts
-                .iter()
-                .enumerate()
-                .skip(1)
-                .map(|(i, _)| (i as NodeId, 3)),
+            (1..idx.starts.len() as NodeId)
+                .filter(|&id| !idx.name(id).is_empty())
+                .map(|id| (id, 3)),
         );
         return Ok(Matched { hits });
     }
@@ -242,7 +246,7 @@ pub fn search_ids(
         && f.modified_before.is_none()
         && f.hidden == HiddenMode::Include
         && scope.is_none();
-    // Deleted nodes have empty names and cannot match, so with no filters every hit is valid.
+    // Deleted nodes have empty names and are never matched, so with no filters every hit is valid.
     let mut hits: Vec<(NodeId, u8)> = if unfiltered {
         matched.hits
     } else {
@@ -547,6 +551,33 @@ mod tests {
                 .1,
             0
         );
+    }
+
+    #[test]
+    fn empty_query_leaves_out_deleted_nodes() {
+        let (mut t, _) = sample();
+        let r = t.find_path(std::path::Path::new("/r")).unwrap();
+        t.clear_children(r);
+        t.aggregate();
+        let idx = SearchIndex::build(&t);
+        let (ids, total) = search_ids(&t, &idx, &q("", SearchMode::Substring)).unwrap();
+        assert_eq!(total, 1);
+        assert_eq!(names(&t, &ids), ["/r"]);
+    }
+
+    #[test]
+    fn regex_escape_classes_keep_their_case() {
+        let (t, idx) = sample();
+        // `\D` means "not a digit"; lowercasing it to `\d` would match nothing here.
+        let (ids, _) = search_ids(&t, &idx, &q(r"^\D+\.pdf$", SearchMode::Regex)).unwrap();
+        assert_eq!(names(&t, &ids), ["Report.pdf"]);
+        let (ids, _) = search_ids(&t, &idx, &q(r"report-\d{4}", SearchMode::Regex)).unwrap();
+        assert_eq!(names(&t, &ids), ["annual-report-2024.docx"]);
+        // Still case-insensitive.
+        let (ids, _) = search_ids(&t, &idx, &q("^REPORT\\.PDF$", SearchMode::Regex)).unwrap();
+        assert_eq!(names(&t, &ids), ["Report.pdf"]);
+        let (ids, _) = search_ids(&t, &idx, &q("NOTES.*", SearchMode::Glob)).unwrap();
+        assert_eq!(names(&t, &ids), ["notes.md"]);
     }
 
     #[test]

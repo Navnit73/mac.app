@@ -45,7 +45,15 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
     set({ loading: true })
     try {
       const summary = await commands.getCleanup(id, refreshApps)
-      set({ summary, error: null })
+      // Rows of closed categories are from the old analysis; drop them so they reload when opened.
+      const expanded = get().expanded
+      set((s) => ({
+        summary,
+        error: null,
+        lists: Object.fromEntries(
+          Object.entries(s.lists).filter(([c]) => expanded.has(c as CategoryId)),
+        ),
+      }))
       // Reload the open categories so their rows match the new analysis.
       await Promise.all([...get().expanded].map((c) => get().loadItems(c, false)))
     } catch (e) {
@@ -61,7 +69,8 @@ export const useCleanupStore = create<CleanupStore>((set, get) => ({
       expanded.delete(c)
     } else {
       expanded.add(c)
-      if (!get().lists[c]) void get().loadItems(c, false)
+      // Always reload: selection flags may have changed (select all, Trash) while it was closed.
+      void get().loadItems(c, false)
     }
     set({ expanded })
   },

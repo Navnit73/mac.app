@@ -98,8 +98,8 @@ export default function FdaBanner() {
           {target && !target.is_self && (
             <p className="text-muted">
               MyMacStorage is running inside <b className="text-fg">{app}</b>, so macOS checks {app}
-              &rsquo;s access, not MyMacStorage&rsquo;s. Once MyMacStorage is installed as an app, you turn on
-              MyMacStorage itself instead.
+              &rsquo;s access, not MyMacStorage&rsquo;s. Once MyMacStorage is installed as an app,
+              you turn on MyMacStorage itself instead.
             </p>
           )}
           <ol className="mt-3 flex flex-col gap-1.5">

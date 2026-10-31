@@ -6,7 +6,7 @@ import EntryIcon from '../components/space/EntryIcon'
 import { KIND_LABEL, KIND_ORDER } from '../lib/colors'
 import { formatAge, formatBytes, formatCount } from '../lib/format'
 import { commands, describeError } from '../lib/ipc'
-import { highlightParts, middleTruncate, tildify } from '../lib/text'
+import { highlightParts, joinPath, middleTruncate, tildify } from '../lib/text'
 import { toQuery, useFindStore, type DatePreset, type SizePreset } from '../state/findStore'
 import { useScanStore } from '../state/scanStore'
 import { useSpaceStore } from '../state/spaceStore'
@@ -189,6 +189,15 @@ export default function Find() {
     input.current?.focus()
   }, [focusTick])
 
+  // A new query replaces the rows, so a kept selection would act on files no longer shown.
+  const shownQuery = useRef(query)
+  useEffect(() => {
+    if (shownQuery.current === query) return
+    shownQuery.current = query
+    anchor.current = null
+    if (useFindStore.getState().selected.length > 0) set({ selected: [] })
+  }, [query, set])
+
   // Debounced search; responses to older requests are ignored.
   useEffect(() => {
     if (!ready || scanId === null) return
@@ -239,7 +248,9 @@ export default function Find() {
   const items = virt.getVirtualItems()
   const last = items[items.length - 1]
   useEffect(() => {
-    if (last && cursor !== null && !busy && last.index >= rows.length - 20) loadMore()
+    // Not after an error: the same page would fail again, in a tight loop.
+    if (last && cursor !== null && !busy && error === null && last.index >= rows.length - 20)
+      loadMore()
   })
 
   const click = (e: React.MouseEvent, index: number, id: number) => {
@@ -474,10 +485,11 @@ export default function Find() {
             onClick={() => {
               const paths = rows
                 .filter((r) => selected.includes(r.id))
-                .map((r) => `${r.location ?? ''}/${r.name}`)
-              void navigator.clipboard
+                .map((r) => joinPath(r.location, r.name))
+              navigator.clipboard
                 .writeText(paths.join('\n'))
                 .then(() => setNote('Paths copied.'))
+                .catch(() => setNote('Could not copy the paths.'))
             }}
           >
             <Icon name="copy" size={12} /> Copy paths
@@ -635,9 +647,10 @@ export default function Find() {
                       aria-label="Copy path"
                       onClick={(e) => {
                         e.stopPropagation()
-                        void navigator.clipboard
-                          .writeText(`${r.location ?? ''}/${r.name}`)
+                        navigator.clipboard
+                          .writeText(joinPath(r.location, r.name))
                           .then(() => setNote('Path copied.'))
+                          .catch(() => setNote('Could not copy the path.'))
                       }}
                     >
                       <Icon name="copy" size={13} />

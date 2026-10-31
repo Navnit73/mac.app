@@ -70,13 +70,11 @@ pub async fn start_duplicate_scan(
             "A duplicate scan is already running.".into(),
         ));
     }
-    let cands = match scans.with_output(scan_id, |out, _| Ok(candidates(&out.tree, &options))) {
-        Ok(c) => c,
-        Err(e) => {
-            dups.running.store(false, Ordering::SeqCst);
-            return Err(e);
-        }
-    };
+    // Fail fast when the scan is unknown or unfinished; the tree walk itself runs on the thread.
+    if let Err(e) = scans.with_output(scan_id, |_, _| Ok(())) {
+        dups.running.store(false, Ordering::SeqCst);
+        return Err(e);
+    }
     dups.cancel.store(false, Ordering::SeqCst);
     *lock(&dups.session) = None;
     let cancel = dups.cancel.clone();
@@ -85,18 +83,25 @@ pub async fn start_duplicate_scan(
         let start = Instant::now();
         let progress_app = app.clone();
         let found = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            find_duplicates(
+            let cands = progress_app
+                .state::<ScanManager>()
+                .with_output(scan_id, |out, _| Ok(candidates(&out.tree, &options)))?;
+            Ok::<_, AppError>(find_duplicates(
                 cands,
                 &cancel,
                 &|p| {
                     let _ = progress_app.emit("dupes://progress", p);
                 },
                 None,
-            )
+            ))
         }));
         let state = app.state::<DupState>();
         let event = match found {
-            Ok(found) => {
+            Ok(Err(e)) => DupDoneEvent {
+                summary: None,
+                error: Some(e.to_string()),
+            },
+            Ok(Ok(found)) => {
                 let mut session = Session::new(
                     found,
                     start.elapsed().as_millis() as u64,
@@ -228,9 +233,27 @@ pub async fn duplicate_selection(
 /// (or, with `clones`, replace them with APFS clones; the originals still go to the Trash).
 #[tauri::command]
 pub async fn remove_duplicates(
-    scans: State<'_, ScanManager>,
-    dups: State<'_, DupState>,
-    trash_state: State<'_, TrashState>,
+    app: AppHandle,
+    scan_id: ScanId,
+    clones: bool,
+) -> Result<TrashBatchResult, AppError> {
+    // Re-hashing every selected copy can take minutes: keep it off the async runtime.
+    crate::cleanup_cmd::blocking(app, move |app| {
+        remove_blocking(
+            &app.state::<ScanManager>(),
+            &app.state::<DupState>(),
+            &app.state::<TrashState>(),
+            scan_id,
+            clones,
+        )
+    })
+    .await
+}
+
+fn remove_blocking(
+    scans: &ScanManager,
+    dups: &DupState,
+    trash_state: &TrashState,
     scan_id: ScanId,
     clones: bool,
 ) -> Result<TrashBatchResult, AppError> {

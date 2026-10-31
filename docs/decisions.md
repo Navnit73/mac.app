@@ -97,3 +97,13 @@ Every removal path was reviewed (Space, Duplicates, Cleanup, Applications, Undo,
 - Cleanup execution moves only items the user saw in the Review sheet: the sheet's node ids go back to Rust and anything else is unselected first, since the analysis can be rebuilt in between.
 - Uninstall: the app moves first and its files only if it did. If the bundle changed since the scan (an update) or is otherwise skipped, its data stays. Containers marked Shared are refused even when asked for, and the UI no longer lets them be ticked. App ids stay stable after an uninstall (removed apps are hidden, not deleted from the list), and the UI sends the bundle id it showed; a mismatch refuses the uninstall instead of removing a different app.
 - `trash_items` ignores node ids the index already marked deleted.
+
+## Audit fixes (2026-10-31)
+- The app is named MyMacStorage (bundle id `com.mymacstorage.app`). On launch, `~/Library/Application Support/DuoBolt` is moved once to `.../MyMacStorage` if the new folder does not exist yet, so settings, the activity log and undo history are kept. macOS permissions (Full Disk Access, Finder automation) are tied to the bundle id and must be granted again.
+- A cleanup rule written as a literal path (no wildcard) matches that folder itself; the item is confined to the folder that holds it. Before this, such items were always refused at clean time.
+- Browser caches are one rule per browser, each requiring its browser to be closed.
+- Duplicates inside a `.photoslibrary` or `.musiclibrary` can be the copy kept but are never selected or moved: the library's database expects them.
+- Uninstall never pre-selects an app's `Containers` or `Group Containers` folder; they hold the app's own documents. They are still listed for the user to tick.
+- iCloud placeholder (dataless) folders are reported and never listed, because listing one can make macOS download it.
+- Weekly Activity bars start on Monday 00:00 local time (current UTC offset). Totals cover every batch, not only the newest 500.
+- After a Trash move, the moved items are dropped from the scan directly instead of rescanning their parent folder. Restores still rescan the parent.

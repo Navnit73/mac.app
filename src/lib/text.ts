@@ -28,3 +28,9 @@ export function tildify(p: string | null | undefined): string {
   if (!p) return ''
   return p.replace(/^\/Users\/[^/]+/, '~')
 }
+
+/** Full path of a row from its parent folder and name. A root row has no parent folder. */
+export function joinPath(location: string | null, name: string): string {
+  if (location === null) return name
+  return location.endsWith('/') ? `${location}${name}` : `${location}/${name}`
+}

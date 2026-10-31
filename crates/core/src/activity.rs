@@ -42,6 +42,11 @@ pub fn week_start(t: i64) -> i64 {
     monday * 86_400
 }
 
+/// Monday 00:00 local time (given the UTC offset in seconds) of the week containing `t`.
+pub fn local_week_start(t: i64, utc_offset: i64) -> i64 {
+    week_start(t + utc_offset) - utc_offset
+}
+
 /// `YYYY-MM-DD HH:MM:SS` in UTC.
 pub fn iso_utc(t: i64) -> String {
     let days = t.div_euclid(86_400);
@@ -218,6 +223,11 @@ impl Store {
 
     /// Newest first.
     pub fn list_batches(&self, limit: u32, offset: u32) -> Result<Vec<BatchSummary>, AppError> {
+        self.batches(i64::from(limit.min(500)), offset)
+    }
+
+    /// Batch summaries, newest first. `limit` -1 means all (for totals, never sent over IPC).
+    fn batches(&self, limit: i64, offset: u32) -> Result<Vec<BatchSummary>, AppError> {
         let mut st = self
             .conn
             .prepare(
@@ -231,7 +241,7 @@ impl Store {
             )
             .map_err(db_err)?;
         let rows = st
-            .query_map(params![limit.min(500), offset], Self::map_summary)
+            .query_map(params![limit, offset], Self::map_summary)
             .map_err(db_err)?;
         rows.collect::<Result<_, _>>().map_err(db_err)
     }
@@ -432,12 +442,18 @@ impl Store {
             .map_err(db_err)
     }
 
-    /// Recovered bytes per week for the last `weeks` weeks (oldest first), plus totals.
-    pub fn weekly_stats(&self, weeks: u32, now: i64) -> Result<WeeklyStats, AppError> {
+    /// Recovered bytes per week for the last `weeks` weeks (oldest first), plus totals over every
+    /// batch. Weeks start on Monday in local time (`utc_offset` seconds east of UTC).
+    pub fn weekly_stats(
+        &self,
+        weeks: u32,
+        now: i64,
+        utc_offset: i64,
+    ) -> Result<WeeklyStats, AppError> {
         let weeks = weeks.clamp(1, 104) as i64;
-        let this_week = week_start(now);
+        let this_week = local_week_start(now, utc_offset);
         let first = this_week - (weeks - 1) * WEEK;
-        let summaries = self.list_batches(u32::MAX, 0)?;
+        let summaries = self.batches(-1, 0)?;
         let mut out: Vec<WeekStat> = (0..weeks)
             .map(|i| WeekStat {
                 week_start: first + i * WEEK,
@@ -446,7 +462,7 @@ impl Store {
             })
             .collect();
         for b in &summaries {
-            let w = week_start(b.created_at);
+            let w = local_week_start(b.created_at, utc_offset);
             if w >= first {
                 if let Some(slot) = out.get_mut(((w - first) / WEEK) as usize) {
                     slot.bytes += b.bytes;
@@ -599,6 +615,11 @@ mod tests {
         assert_eq!(week_start(4 * 86_400), 4 * 86_400);
         assert_eq!(week_start(4 * 86_400 - 1), -3 * 86_400);
         assert_eq!(week_start(10 * 86_400 + 5), 4 * 86_400);
+        // Monday 1970-01-05 03:00 at UTC+5:30 is Sunday 21:30 UTC: still Monday's week locally.
+        let ist = 5 * 3600 + 1800;
+        let t = 4 * 86_400 + 3 * 3600 - ist;
+        assert_eq!(week_start(t), -3 * 86_400);
+        assert_eq!(local_week_start(t, ist), 4 * 86_400 - ist);
     }
 
     #[test]
@@ -640,7 +661,7 @@ mod tests {
         assert!(e.root.join("a.bin").exists() && e.root.join("b.bin").exists());
         assert_eq!(e.store.last_undoable().unwrap(), None);
 
-        let stats = e.store.weekly_stats(4, 12 * 86_400).unwrap();
+        let stats = e.store.weekly_stats(4, 12 * 86_400, 0).unwrap();
         assert_eq!(
             stats.total_bytes, 0,
             "fully restored batches recover nothing"
@@ -660,7 +681,7 @@ mod tests {
                 .record(Room::Space, &out, 100 * 86_400 + day * 86_400)
                 .unwrap();
         }
-        let stats = e.store.weekly_stats(8, 116 * 86_400).unwrap();
+        let stats = e.store.weekly_stats(8, 116 * 86_400, 0).unwrap();
         let sum: u64 = stats.weeks.iter().map(|w| w.bytes).sum();
         assert_eq!(sum, expected);
         assert_eq!(stats.total_bytes, expected);
@@ -713,7 +734,7 @@ mod tests {
         assert_eq!(e.store.mark_all_emptied().unwrap(), 1);
         assert_eq!(e.store.in_trash_totals().unwrap(), (0, 0));
         // Emptied items still count as recovered space.
-        assert_eq!(e.store.weekly_stats(1, 0).unwrap().total_bytes, 20);
+        assert_eq!(e.store.weekly_stats(1, 0, 0).unwrap().total_bytes, 20);
     }
 
     #[test]

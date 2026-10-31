@@ -40,6 +40,12 @@ function withSelected(g: DupGroup, pick: (nodeId: number, was: boolean) => boole
   }
 }
 
+/** A change to one group, applied to its latest state. */
+interface GroupUpdate {
+  id: number
+  apply: (g: DupGroup) => DupGroup
+}
+
 /** Image groups show the picture (Rust allows only that one file for the asset protocol). */
 function Thumb({ g }: { g: DupGroup }) {
   const [failed, setFailed] = useState(false)
@@ -70,23 +76,26 @@ function Options() {
   const start = useDupesStore((s) => s.start)
   const error = useDupesStore((s) => s.error)
   const currentId = useSpaceStore((s) => s.currentId)
-  const [scopeName, setScopeName] = useState<string | null>(null)
+  const [named, setNamed] = useState<{ id: number; name: string | null } | null>(null)
   const scanId = useScanStore((s) => s.scanId)
   const roots = useScanStore((s) => s.roots)
   // At the scan root, "only in this folder" would be the same as everything.
   const canScope = currentId !== null && currentId !== rootNodeId(roots)
+  // Once chosen, the scope stays on that folder even if Space moves elsewhere; name that one.
+  const scopeId = options.scope ?? (canScope ? currentId : null)
+  const scopeName = named !== null && named.id === scopeId ? named.name : null
 
   useEffect(() => {
-    if (scanId === null || currentId === null) return
+    if (scanId === null || scopeId === null) return
     let live = true
     commands
-      .getBreadcrumb(scanId, currentId)
-      .then((c) => live && setScopeName(c[c.length - 1]?.name ?? null))
+      .getBreadcrumb(scanId, scopeId)
+      .then((c) => live && setNamed({ id: scopeId, name: c[c.length - 1]?.name ?? null }))
       .catch(() => undefined)
     return () => {
       live = false
     }
-  }, [scanId, currentId])
+  }, [scanId, scopeId])
 
   const toggleKind = (k: FileKind) =>
     setOptions({
@@ -100,8 +109,8 @@ function Options() {
       <div>
         <h2 className="text-lg font-semibold">Find files that exist twice</h2>
         <p className="mt-1 text-muted">
-          MyMacStorage compares contents, not names, so only true copies are grouped. You choose which
-          copy to keep; one copy of every file is always kept.
+          MyMacStorage compares contents, not names, so only true copies are grouped. You choose
+          which copy to keep; one copy of every file is always kept.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -114,11 +123,11 @@ function Options() {
           >
             Everything scanned
           </button>
-          {canScope && (
+          {scopeId !== null && (
             <button
               type="button"
               aria-pressed={options.scope !== null}
-              onClick={() => setOptions({ scope: currentId })}
+              onClick={() => setOptions({ scope: scopeId })}
               title="The folder open in Space"
             >
               Only in {scopeName ?? 'the Space folder'}
@@ -277,8 +286,8 @@ const GroupCard = memo(function GroupCard({
   scanId: number
   open: boolean
   onToggle: (groupId: number) => void
-  /** With a group: only it changed. Without: the selection changed everywhere. */
-  onChanged: (updated?: DupGroup) => void
+  /** With an update: only that group changed. Without: refetch, the selection changed anywhere. */
+  onChanged: (update?: GroupUpdate) => void
 }) {
   const setSavings = useDupesStore((s) => s.setSavings)
   const [note, setNote] = useState<string | null>(null)
@@ -286,15 +295,18 @@ const GroupCard = memo(function GroupCard({
 
   const run = async (
     fn: () => Promise<{ bytes: number; files: number; groups: number }>,
-    updated?: DupGroup,
+    pick?: (nodeId: number, was: boolean) => boolean,
   ) => {
     try {
       setSavings(await fn())
       setNote(null)
       // Groups are ordered by reclaimable bytes; updating in place keeps a card from jumping.
-      onChanged(updated)
+      // Applied to the latest group, not the one this render saw, so quick clicks add up.
+      onChanged(pick ? { id: g.id, apply: (latest) => withSelected(latest, pick) } : undefined)
     } catch (e) {
       setNote(describeError(e).replace(/^\w+: /, ''))
+      // Part of a multi-step change may have applied in Rust; show what Rust holds now.
+      onChanged()
     }
   }
 
@@ -310,7 +322,7 @@ const GroupCard = memo(function GroupCard({
         }
         return s
       },
-      withSelected(g, (id) => id !== nodeId),
+      (id) => id !== nodeId,
     )
 
   return (
@@ -364,7 +376,7 @@ const GroupCard = memo(function GroupCard({
                     const on = e.target.checked
                     void run(
                       () => commands.setDuplicateSelected(scanId, g.id, f.node_id, on),
-                      withSelected(g, (id, was) => (id === f.node_id ? on : was)),
+                      (id, was) => (id === f.node_id ? on : was),
                     )
                   }}
                 />
@@ -404,7 +416,11 @@ const GroupCard = memo(function GroupCard({
                     type="button"
                     className="btn btn-ghost h-6 px-1.5"
                     aria-label="Reveal in Finder"
-                    onClick={() => void commands.revealInFinder(scanId, f.node_id)}
+                    onClick={() =>
+                      commands
+                        .revealInFinder(scanId, f.node_id)
+                        .catch((e) => setNote(describeError(e).replace(/^\w+: /, '')))
+                    }
                   >
                     <Icon name="reveal" size={12} />
                   </button>
@@ -454,8 +470,8 @@ function Results({ scanId }: { scanId: number }) {
       return n
     })
   }, [])
-  const groupChanged = useCallback((u?: DupGroup) => {
-    if (u) setGroups((gs) => gs.map((x) => (x.id === u.id ? u : x)))
+  const groupChanged = useCallback((u?: GroupUpdate) => {
+    if (u) setGroups((gs) => gs.map((x) => (x.id === u.id ? u.apply(x) : x)))
     else setTick((t) => t + 1)
   }, [])
   const fetchGroups = useCallback(async () => {

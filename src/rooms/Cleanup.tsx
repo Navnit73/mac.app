@@ -47,7 +47,10 @@ function ItemRow({
       className={`group flex items-center gap-3 border-b border-line px-5 py-2.5 last:border-0 ${item.selected ? '' : 'hover:bg-hover'}`}
     >
       {item.report_only ? (
-        <span className="flex w-[13px] justify-center text-faint" title="MyMacStorage leaves this alone">
+        <span
+          className="flex w-[13px] justify-center text-faint"
+          title="MyMacStorage leaves this alone"
+        >
           <Icon name="lock" size={12} />
         </span>
       ) : (

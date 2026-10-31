@@ -118,8 +118,8 @@ export default function ReviewSheet() {
           <span>
             <span className="font-medium">Quit {listNames(review.runningApps)} first</span>
             <span className="block text-xs text-muted">
-              They are open and use some of these items. MyMacStorage asks them to quit the normal way
-              (they may ask to save). Without this, their items are left alone.
+              They are open and use some of these items. MyMacStorage asks them to quit the normal
+              way (they may ask to save). Without this, their items are left alone.
             </span>
           </span>
         </label>

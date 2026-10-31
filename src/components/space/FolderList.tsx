@@ -100,8 +100,10 @@ export default function FolderList({ scanId }: { scanId: number }) {
   const items = virt.getVirtualItems()
   const last = items[items.length - 1]
   useEffect(() => {
-    if (last && cursor !== null && !loading && last.index >= rows.length - 20) void load(cursor)
-  }, [last, cursor, loading, rows.length, load])
+    // Not after an error: the same page would fail again, in a tight loop.
+    if (last && cursor !== null && !loading && error === null && last.index >= rows.length - 20)
+      void load(cursor)
+  }, [last, cursor, loading, error, rows.length, load])
 
   const onSort = (k: SortKey) => {
     if (k === sort) setDesc((d) => !d)
@@ -135,7 +137,7 @@ export default function FolderList({ scanId }: { scanId: number }) {
       if (r) open(r)
     } else if (e.key === ' ' && selectedId !== null) {
       e.preventDefault()
-      void commands.quickLook(scanId, selectedId)
+      commands.quickLook(scanId, selectedId).catch((err) => setError(describeError(err)))
     }
   }
 

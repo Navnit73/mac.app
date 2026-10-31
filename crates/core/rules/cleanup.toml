@@ -166,20 +166,56 @@ risk = "review"
 
 # --- Caches ----------------------------------------------------------------------------------
 
+# One rule per browser so each cache is skipped only while its own browser is open.
 [[rule]]
-id = "browser-caches"
+id = "browser-cache-safari"
 category = "Caches"
-name = "Browser caches"
+name = "Safari cache"
 description = "Saved copies of web pages. Clearing them signs you out of nothing; pages load again from the web."
-paths = [
-  "~/Library/Caches/com.apple.Safari",
-  "~/Library/Caches/Google/Chrome",
-  "~/Library/Caches/Firefox",
-  "~/Library/Caches/com.microsoft.edgemac",
-  "~/Library/Caches/company.thebrowser.Browser",
-]
+paths = ["~/Library/Caches/com.apple.Safari"]
 risk = "safe"
 regenerates = true
+requires_app_closed = "com.apple.Safari"
+
+[[rule]]
+id = "browser-cache-chrome"
+category = "Caches"
+name = "Chrome cache"
+description = "Saved copies of web pages. Clearing them signs you out of nothing; pages load again from the web."
+paths = ["~/Library/Caches/Google/Chrome"]
+risk = "safe"
+regenerates = true
+requires_app_closed = "com.google.Chrome"
+
+[[rule]]
+id = "browser-cache-firefox"
+category = "Caches"
+name = "Firefox cache"
+description = "Saved copies of web pages. Clearing them signs you out of nothing; pages load again from the web."
+paths = ["~/Library/Caches/Firefox"]
+risk = "safe"
+regenerates = true
+requires_app_closed = "org.mozilla.firefox"
+
+[[rule]]
+id = "browser-cache-edge"
+category = "Caches"
+name = "Edge cache"
+description = "Saved copies of web pages. Clearing them signs you out of nothing; pages load again from the web."
+paths = ["~/Library/Caches/com.microsoft.edgemac"]
+risk = "safe"
+regenerates = true
+requires_app_closed = "com.microsoft.edgemac"
+
+[[rule]]
+id = "browser-cache-arc"
+category = "Caches"
+name = "Arc cache"
+description = "Saved copies of web pages. Clearing them signs you out of nothing; pages load again from the web."
+paths = ["~/Library/Caches/company.thebrowser.Browser"]
+risk = "safe"
+regenerates = true
+requires_app_closed = "company.thebrowser.Browser"
 
 [[rule]]
 id = "system-caches"

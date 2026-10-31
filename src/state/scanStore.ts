@@ -5,6 +5,7 @@ import type { ScanDoneEvent } from '../types/bindings/ScanDoneEvent'
 import type { ScanProgress } from '../types/bindings/ScanProgress'
 import type { ScanProgressEvent } from '../types/bindings/ScanProgressEvent'
 import type { ScanSummary } from '../types/bindings/ScanSummary'
+import { useFindStore } from './findStore'
 import { useSpaceStore } from './spaceStore'
 
 export type ScanPhase = 'idle' | 'running' | 'done' | 'cancelled' | 'failed'
@@ -85,7 +86,11 @@ export const useScanStore = create<ScanStore>((set, get) => ({
   onDone: (e) => {
     const phase = e.status === 'Done' ? 'done' : e.status === 'Cancelled' ? 'cancelled' : 'failed'
     set({ scanId: e.id, phase, summary: e.summary, error: e.error })
-    if (phase !== 'failed') useSpaceStore.getState().reset(rootNodeId(get().roots))
+    if (phase !== 'failed') {
+      useSpaceStore.getState().reset(rootNodeId(get().roots))
+      // Node ids belong to one scan; a kept selection or scope would point at other files.
+      useFindStore.getState().set({ selected: [], scope: null })
+    }
   },
 }))
 

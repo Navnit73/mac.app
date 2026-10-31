@@ -58,6 +58,15 @@ impl Cand {
     }
 }
 
+/// True for a file inside a Photos or Music library. Such a copy may be the one kept, but is
+/// never removed: the library's database expects to find it.
+pub fn in_media_library(path: &Path) -> bool {
+    path.components().any(|c| {
+        let lower = c.as_os_str().to_string_lossy().to_lowercase();
+        lower.ends_with(".photoslibrary") || lower.ends_with(".musiclibrary")
+    })
+}
+
 /// Folders never searched: system areas, dependency and VCS stores.
 fn excluded_dir(tree: &Tree, id: NodeId, opts: &DupOptions) -> bool {
     let Some(n) = tree.node(id) else { return true };
@@ -295,8 +304,12 @@ fn staged<T: Sync, R: Send>(
         let files_done = counters.files.load(Ordering::Relaxed);
         let bytes_done = counters.bytes.load(Ordering::Relaxed);
         let elapsed = start.elapsed().as_millis() as u64;
-        let eta_ms = (bytes_done > 0 && bytes_total > bytes_done)
-            .then(|| elapsed * (bytes_total - bytes_done) / bytes_done);
+        let eta_ms = (bytes_done > 0 && bytes_total > bytes_done).then(|| {
+            // u128: hours elapsed times terabytes left overflows u64.
+            let eta =
+                u128::from(elapsed) * u128::from(bytes_total - bytes_done) / u128::from(bytes_done);
+            u64::try_from(eta).unwrap_or(u64::MAX)
+        });
         progress(DupProgress {
             stage,
             files_done,
@@ -520,7 +533,7 @@ impl SGroup {
     /// Select everything except `keep`.
     fn keep_only(&mut self, keep: usize) {
         for (i, f) in self.files.iter_mut().enumerate() {
-            f.selected = i != keep;
+            f.selected = i != keep && !in_media_library(&f.cand.path);
         }
     }
 }
@@ -647,6 +660,11 @@ impl Session {
                 "At least one copy must be kept.".into(),
             ));
         }
+        if on && in_media_library(&f.cand.path) {
+            return Err(AppError::InvalidInput(
+                "This copy is inside a Photos or Music library, so it is kept.".into(),
+            ));
+        }
         f.selected = on;
         Ok(())
     }
@@ -731,6 +749,13 @@ impl Session {
     pub fn forget(&mut self, nodes: &HashSet<NodeId>) {
         for g in &mut self.groups {
             g.files.retain(|f| !nodes.contains(&f.cand.node));
+            // If the kept copy was the one forgotten, keep another so the group is never all
+            // selected.
+            if g.files.iter().all(|f| f.selected) {
+                if let Some(f) = g.files.first_mut() {
+                    f.selected = false;
+                }
+            }
         }
         self.groups.retain(|g| g.files.len() > 1);
     }
@@ -766,6 +791,14 @@ impl Session {
                 continue;
             }
             for f in selected {
+                if in_media_library(&f.cand.path) {
+                    v.skipped.push((
+                        f.cand.path.clone(),
+                        f.private_size,
+                        "It is inside a Photos or Music library, so it is kept.".into(),
+                    ));
+                    continue;
+                }
                 if same_file(&kept.cand.path, &f.cand.path) {
                     v.skipped.push((
                         f.cand.path.clone(),
@@ -1154,6 +1187,74 @@ mod tests {
 
         s.apply_rule(KeepRule::Manual, None, None);
         assert_eq!(s.savings().files, 0);
+    }
+
+    fn manual_session(paths: &[&str]) -> Session {
+        let files = paths
+            .iter()
+            .enumerate()
+            .map(|(i, p)| SFile {
+                cand: Cand {
+                    node: i as NodeId + 1,
+                    path: PathBuf::from(p),
+                    size: 100,
+                    mtime: 0,
+                    dev: 1,
+                    inode: i as u64 + 1,
+                },
+                private_size: 100,
+                selected: false,
+            })
+            .collect();
+        Session {
+            groups: vec![SGroup {
+                id: 0,
+                size: 100,
+                kind: FileKind::Other,
+                files,
+            }],
+            summary: DupSummary::default(),
+        }
+    }
+
+    #[test]
+    fn media_library_copies_are_never_selected() {
+        let lib = "/Users/me/Pictures/Photos Library.photoslibrary/originals/A/x.heic";
+        let mut s = manual_session(&["/Users/me/Pictures/IMG_1.HEIC", lib, "/Users/me/a/b/c.heic"]);
+        // Shortest path keeps the copy outside; the library copy must still not be selected.
+        s.apply_rule(KeepRule::ShortestPath, None, None);
+        let sel: Vec<_> = s.groups[0]
+            .files
+            .iter()
+            .filter(|f| f.selected)
+            .map(|f| f.cand.path.to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(sel, ["/Users/me/a/b/c.heic"]);
+        assert!(s.set_selected(0, 2, true).is_err());
+        // Even a session tampered into selecting it never moves it.
+        s.groups[0].files[1].selected = true;
+        let v = s.verify(&Context::new(vec![PathBuf::from("/Users/me")]));
+        assert!(v.ok.iter().all(|(c, _)| !in_media_library(&c.path)));
+        assert!(in_media_library(Path::new(
+            "/x/Music Library.MusicLibrary/a.mp3"
+        )));
+        assert!(!in_media_library(Path::new("/x/photoslibrary-notes/a.jpg")));
+    }
+
+    #[test]
+    fn forgetting_the_kept_copy_keeps_another() {
+        let mut s = manual_session(&["/r/a", "/r/b", "/r/c"]);
+        s.apply_rule(KeepRule::ShortestPath, None, None);
+        let kept = s.groups[0]
+            .files
+            .iter()
+            .find(|f| !f.selected)
+            .unwrap()
+            .cand
+            .node;
+        s.forget(&HashSet::from([kept]));
+        assert_eq!(s.groups[0].files.len(), 2);
+        assert_eq!(s.groups[0].files.iter().filter(|f| !f.selected).count(), 1);
     }
 
     #[test]

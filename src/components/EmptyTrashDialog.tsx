@@ -50,8 +50,8 @@ export default function EmptyTrashDialog() {
           </dl>
         )}
         <p className="text-xs text-muted">
-          MyMacStorage asks Finder to empty the Trash. The first time, macOS asks whether MyMacStorage may
-          control Finder.
+          MyMacStorage asks Finder to empty the Trash. The first time, macOS asks whether
+          MyMacStorage may control Finder.
         </p>
         {empty?.error && (
           <p role="alert" className="rounded-lg bg-bad-soft px-3 py-2 text-bad">

@@ -100,7 +100,11 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
     let live = true
     commands
       .getOverview(scanId)
-      .then((r) => live && setO(r))
+      .then((r) => {
+        if (!live) return
+        setO(r)
+        setError(null)
+      })
       .catch((e) => live && setError(describeError(e)))
     return () => {
       live = false

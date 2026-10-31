@@ -94,7 +94,8 @@ export default function LargeFiles({ scanId }: { scanId: number }) {
               className="chip"
               aria-pressed={group === g.group}
               title={GROUP_HINT[g.group]}
-              disabled={g.count === 0}
+              // Empty groups can't be picked, but the active one can always be turned off.
+              disabled={g.count === 0 && group !== g.group}
               onClick={() => setGroup(group === g.group ? null : g.group)}
             >
               {GROUP_LABEL[g.group]}

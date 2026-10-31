@@ -280,6 +280,20 @@ pub fn last_used(path: &Path) -> Option<i64> {
 
 /// Last-opened times for many paths with one `mdls` call (same order; `None` when unknown).
 pub fn last_used_many(paths: &[&Path]) -> Vec<Option<i64>> {
+    // `mdls` stops at the first path that does not exist and prints nothing for the rest, so
+    // ask only about paths that exist and put the answers back in place.
+    let existing: Vec<usize> = (0..paths.len())
+        .filter(|&i| std::fs::symlink_metadata(paths[i]).is_ok())
+        .collect();
+    let found = last_used_existing(&existing.iter().map(|&i| paths[i]).collect::<Vec<_>>());
+    let mut out = vec![None; paths.len()];
+    for (i, v) in existing.into_iter().zip(found) {
+        out[i] = v;
+    }
+    out
+}
+
+fn last_used_existing(paths: &[&Path]) -> Vec<Option<i64>> {
     if paths.is_empty() {
         return Vec::new();
     }
@@ -452,13 +466,26 @@ pub fn parse_mdls_date(s: &str) -> Option<i64> {
     if let Some(off) = parts.next() {
         let sign = if off.starts_with('-') { -1 } else { 1 };
         let digits = off.trim_start_matches(['+', '-']);
-        if digits.len() == 4 {
-            let oh: i64 = digits[..2].parse().ok()?;
-            let om: i64 = digits[2..].parse().ok()?;
+        if digits.len() == 4 && digits.bytes().all(|b| b.is_ascii_digit()) {
+            let oh: i64 = digits.get(..2)?.parse().ok()?;
+            let om: i64 = digits.get(2..)?.parse().ok()?;
             secs -= sign * (oh * 3600 + om * 60);
         }
     }
     Some(secs)
+}
+
+/// Seconds east of UTC for local time at `t` (Unix seconds); 0 when unknown.
+pub fn utc_offset(t: i64) -> i64 {
+    let time: libc::time_t = t;
+    // SAFETY: `localtime_r` writes only into the zeroed `tm` we own; both pointers are valid.
+    let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+    let ok = unsafe { !libc::localtime_r(&time, &mut tm).is_null() };
+    if ok {
+        tm.tm_gmtoff
+    } else {
+        0
+    }
 }
 
 fn spawn_detached(cmd: &str, args: &[&std::ffi::OsStr]) -> Result<(), AppError> {
@@ -532,6 +559,19 @@ mod tests {
             Some(951_868_800)
         );
         assert_eq!(parse_mdls_date("(null)"), None);
+        // Odd offset text must not panic (multi-byte char across the split point).
+        assert_eq!(parse_mdls_date("1970-01-01 00:00:00 +1\u{e9}1"), Some(0));
+    }
+
+    #[test]
+    fn last_used_many_keeps_order_past_a_missing_path() {
+        let missing = Path::new("/nonexistent/Nope.app");
+        let real = Path::new("/System/Applications/Calculator.app");
+        let got = last_used_many(&[missing, real, missing]);
+        assert_eq!(got.len(), 3);
+        assert_eq!(got[0], None);
+        assert_eq!(got[2], None);
+        assert_eq!(got[1], last_used_many(&[real])[0]);
     }
 
     #[test]

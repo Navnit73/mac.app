@@ -9,6 +9,8 @@ import { useScanStore } from './scanStore'
 import { useSpaceStore } from './spaceStore'
 
 interface Review {
+  /** Scan the node ids belong to, captured when the review opened. */
+  scanId: number
   nodeIds: number[]
   room: Room
   /** Replaces the plain move, e.g. Duplicates verifies every copy first. */
@@ -61,8 +63,11 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
   openReview: async (nodeIds, room, extra) => {
     const id = scanId()
     if (id === null || nodeIds.length === 0) return
+    // Never replace a review whose move is in flight: its button would come back enabled.
+    if (get().review?.moving) return
     set({
       review: {
+        scanId: id,
         nodeIds,
         room,
         preview: null,
@@ -74,9 +79,12 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
     })
     try {
       const preview = await commands.previewTrash(id, nodeIds)
-      set((s) => (s.review ? { review: { ...s.review, preview } } : s))
+      // Only the review this request was made for: a newer one may have replaced it.
+      set((s) => (s.review?.nodeIds === nodeIds ? { review: { ...s.review, preview } } : s))
     } catch (e) {
-      set((s) => (s.review ? { review: { ...s.review, error: describeError(e) } } : s))
+      set((s) =>
+        s.review?.nodeIds === nodeIds ? { review: { ...s.review, error: describeError(e) } } : s,
+      )
     }
   },
 
@@ -86,8 +94,8 @@ export const useTrashStore = create<TrashStore>((set, get) => ({
 
   confirmReview: async () => {
     const r = get().review
-    const id = scanId()
-    if (!r || !r.preview || id === null) return
+    if (!r || !r.preview || r.moving) return
+    const id = r.scanId
     const allowed = r.preview.items.filter((i) => i.blocked === null).map((i) => i.node_id)
     set({ review: { ...r, moving: true, error: null } })
     try {

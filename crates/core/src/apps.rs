@@ -304,7 +304,11 @@ pub fn entry_id(name: &str, kind: RelatedKind) -> String {
             }
         }
     }
-    s.strip_prefix("group.").unwrap_or(s).to_string()
+    // App groups are `group.<id>`; some Apple ones (Podcasts) use `groups.<id>`.
+    s.strip_prefix("group.")
+        .or_else(|| s.strip_prefix("groups."))
+        .unwrap_or(s)
+        .to_string()
 }
 
 /// `com.vendor.app`-like: at least three dot-separated parts of letters, digits, `-` and `_`.
@@ -430,9 +434,13 @@ pub struct Related {
 
 impl Related {
     /// Exact or prefix matches in the user's Library are suggested; the rest are for review.
+    /// Containers hold a sandboxed app's own documents, so they are never pre-selected.
     pub fn suggested(&self) -> bool {
         matches!(self.confidence, Confidence::Exact | Confidence::Prefix)
-            && self.kind != RelatedKind::SystemSupport
+            && !matches!(
+                self.kind,
+                RelatedKind::SystemSupport | RelatedKind::Containers | RelatedKind::GroupContainers
+            )
     }
 
     pub fn to_model(&self) -> RelatedFile {
@@ -1047,6 +1055,14 @@ mod tests {
         assert_eq!(
             entry_id("group.com.x.y", RelatedKind::GroupContainers),
             "com.x.y"
+        );
+        // Apple Podcasts: must resolve to com.apple.*, so it is never a leftover.
+        assert_eq!(
+            entry_id(
+                "243LU875E5.groups.com.apple.podcasts",
+                RelatedKind::GroupContainers
+            ),
+            "com.apple.podcasts"
         );
         assert_eq!(
             entry_id("UBF8T346G9.com.x", RelatedKind::Support),
