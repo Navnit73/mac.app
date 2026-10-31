@@ -120,3 +120,8 @@ Every removal path was reviewed (Space, Duplicates, Cleanup, Applications, Undo,
 ## No licensing (2026-10-31)
 - Product owner's decision: MyMacStorage is free to download and use with full access. No licence keys, no activation, no trial limits, no paywall. This replaces PRD 6.11 and the licensing part of M9.
 - `core::license::is_active()` stays and returns `false`; it only fills the heartbeat's `licensed` field, which the server requires. Nothing in the app is gated on it.
+
+## Unsigned direct distribution (2026-10-31)
+- Product owner's choice: sell the DMG from mymacstorage.com without an Apple Developer ID (no $99/year programme) for now. Buyers allow the app once in System Settings → Privacy & Security → Open Anyway; the instructions for the download page are in `docs/install-unsigned.md`.
+- The whole bundle is ad-hoc signed (`signingIdentity: "-"`). A bundle with only the linker's signature on the executable is reported as "damaged" on Apple Silicon with no Open Anyway option; a proper ad-hoc seal gets the "could not verify" prompt, which can be overridden.
+- `hardenedRuntime` is off while ad-hoc signed and must be turned on with a Developer ID (`docs/release.md`). The Apple Events entitlement and usage text are already in place for that switch.

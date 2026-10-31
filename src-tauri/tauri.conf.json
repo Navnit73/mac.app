@@ -42,7 +42,10 @@
     ],
     "macOS": {
       "minimumSystemVersion": "14.0",
-      "bundleVersion": "1"
+      "bundleVersion": "1",
+      "entitlements": "./Entitlements.plist",
+      "signingIdentity": "-",
+      "hardenedRuntime": false
     }
   }
 }
