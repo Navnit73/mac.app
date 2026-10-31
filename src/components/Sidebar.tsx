@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { ROOMS } from '../rooms'
 import Icon, { type IconName } from './Icon'
+import logo from '../assets/logo.png'
 
 const link = ({ isActive }: { isActive: boolean }) =>
   `group relative flex items-center gap-3 rounded-lg px-3 py-2 transition-colors ${
@@ -36,9 +37,7 @@ export default function Sidebar() {
       {/* Room for the window's traffic lights; dragging here moves the window. */}
       <div data-tauri-drag-region className="h-[52px] shrink-0" />
       <div data-tauri-drag-region className="flex items-center gap-2.5 px-5 pb-6">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-accent-fg">
-          <Icon name="bolt" size={16} strokeWidth={2.2} />
-        </span>
+        <img src={logo} alt="" draggable={false} className="h-7 w-7 rounded-[7px]" />
         <span className="font-display text-[15px] font-semibold tracking-tight">MyMacStorage</span>
       </div>
       <div className="eyebrow px-5 pb-2">Rooms</div>
