@@ -5,10 +5,10 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use duobolt_core::find::{search, SearchIndex};
-use duobolt_core::models::{ScanOptions, SearchMode, SearchQuery};
-use duobolt_core::scanner::mock::MockFs;
-use duobolt_core::scanner::scan;
+use mymacstorage_core::find::{search, SearchIndex};
+use mymacstorage_core::models::{ScanOptions, SearchMode, SearchQuery};
+use mymacstorage_core::scanner::mock::MockFs;
+use mymacstorage_core::scanner::scan;
 
 fn bench_scan(c: &mut Criterion) {
     // 10 x 10 x 10 = 1000 leaf dirs of 1000 files: about 1.0M files + 1.1k dirs.

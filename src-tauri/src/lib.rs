@@ -1,4 +1,4 @@
-//! Thin Tauri command layer. All real logic lives in `duobolt-core`.
+//! Thin Tauri command layer. All real logic lives in `mymacstorage-core`.
 
 use std::time::Duration;
 
@@ -10,8 +10,8 @@ mod settings;
 mod trash_cmd;
 mod views;
 
-use duobolt_core::models::{ping as core_ping, PingEvent, PingResponse};
-use duobolt_core::AppError;
+use mymacstorage_core::models::{ping as core_ping, PingEvent, PingResponse};
+use mymacstorage_core::AppError;
 use tauri::{AppHandle, Emitter};
 
 /// Event name for the demo ticker.
@@ -45,6 +45,7 @@ fn emit_ticks(app: AppHandle, count: u32) -> Result<(), AppError> {
 
 /// Build and run the application.
 pub fn run() {
+    settings::migrate_legacy_data_dir();
     let result = tauri::Builder::default()
         .manage(scan::ScanManager::default())
         .manage(trash_cmd::TrashState::default())

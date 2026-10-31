@@ -1,5 +1,5 @@
 {
-  "name": "duobolt",
+  "name": "mymacstorage",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "gen:types": "cargo test -p duobolt-core --quiet",
+    "gen:types": "cargo test -p mymacstorage-core --quiet",
     "tauri": "tauri"
   },
   "dependencies": {

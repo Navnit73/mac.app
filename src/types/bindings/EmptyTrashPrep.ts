@@ -4,7 +4,7 @@ export type EmptyTrashPrep = {
 /**
  * Pass back to `empty_trash` within 60 seconds to confirm.
  */
-token: string, duobolt_items: number, duobolt_bytes: number, 
+token: string, mymacstorage_items: number, mymacstorage_bytes: number, 
 /**
  * Size of the whole Trash, when it can be read (needs Full Disk Access).
  */

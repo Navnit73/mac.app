@@ -1,6 +1,6 @@
 //! Deterministic fixture tree generator.
 //!
-//! Usage: `duobolt-fixtures <output-dir> [--big]`
+//! Usage: `mymacstorage-fixtures <output-dir> [--big]`
 //! `--big` additionally creates a 2 GB sparse file (no real disk use).
 //! The output dir is deleted and recreated, so it must end in `fixtures-out`
 //! or be empty/nonexistent.
@@ -115,14 +115,14 @@ fn reset(root: &Path) -> io::Result<()> {
 fn main() {
     let mut args = std::env::args().skip(1);
     let Some(out) = args.next() else {
-        eprintln!("usage: duobolt-fixtures <output-dir> [--big]");
+        eprintln!("usage: mymacstorage-fixtures <output-dir> [--big]");
         std::process::exit(2);
     };
     let big = args.any(|a| a == "--big");
     let root = PathBuf::from(out);
 
     // Safety: only wipe a directory that is empty, absent, or a previous fixture dir.
-    let is_fixture_dir = root.join(".duobolt-fixtures").exists();
+    let is_fixture_dir = root.join(".mymacstorage-fixtures").exists();
     let is_empty = fs::read_dir(&root)
         .map(|mut d| d.next().is_none())
         .unwrap_or(true);
@@ -135,7 +135,7 @@ fn main() {
     }
 
     let result = reset(&root)
-        .and_then(|_| write(&root.join(".duobolt-fixtures"), b"marker"))
+        .and_then(|_| write(&root.join(".mymacstorage-fixtures"), b"marker"))
         .and_then(|_| generate(&root, big));
     match result {
         Ok(()) => println!("fixtures written to {}", root.display()),

@@ -12,6 +12,6 @@ regenerates: boolean, bytes: number, files: number, mtime: number, is_dir: boole
  */
 running_app: string | null, 
 /**
- * Shown but never removed by DuoBolt; `guidance` says what to do instead.
+ * Shown but never removed by MyMacStorage; `guidance` says what to do instead.
  */
 report_only: boolean, guidance: string | null, selected: boolean, };

@@ -1,8 +1,8 @@
-# DuoBolt for Mac — Product Requirements Document
+# MyMacStorage for Mac — Product Requirements Document
 
 | | |
 |---|---|
-| **Product** | DuoBolt (working name) — native-feeling macOS disk analyzer, cleaner and duplicate finder |
+| **Product** | MyMacStorage (working name) — native-feeling macOS disk analyzer, cleaner and duplicate finder |
 | **Platform** | macOS 14 (Sonoma) and later, Apple Silicon + Intel |
 | **Stack** | Rust core · Tauri 2 shell · React + Vite + TypeScript + Tailwind UI |
 | **Business model** | One-time purchase, $19.99, no subscription, offline license |
@@ -61,7 +61,7 @@
 └──────────────▲───────────────────────────┬─────────────────┘
                │                           │
 ┌──────────────┴───────────────────────────▼─────────────────┐
-│ duobolt-core (Rust library, no Tauri dependency)            │
+│ mymacstorage-core (Rust library, no Tauri dependency)            │
 │ scanner · index · find · space · cleanup · duplicates ·     │
 │ apps · activity · trash · license                           │
 └──────────────▲───────────────────────────┬─────────────────┘
@@ -73,7 +73,7 @@
 - **UI framework: React 18 + Vite + TypeScript (SPA).** Tauri loads a static bundle from a WebView; there is no server at runtime, so a meta-framework such as Next.js adds routing, SSR and build complexity with no benefit. Vite is Tauri's first-class, officially supported frontend path, with instant HMR. Routing uses `react-router` (hash or memory router). All data comes from Tauri `invoke` and events.
 - **Why not alternatives:** SwiftUI would be the most native look but would discard the Rust-centred plan and a shared engine for a future Windows build; egui/Slint lack mature virtualized tables and chart tooling. React + Vite gives the best speed of UI development with a reusable Rust core.
 - **Cargo workspace:** `crates/core` (pure logic, unit-testable, no UI) and `src-tauri` (thin command layer).
-- **Persistence:** SQLite (`rusqlite`) in `~/Library/Application Support/DuoBolt/` for settings, activity log, trash manifests, scan snapshots. Scan index in memory with optional on-disk cache.
+- **Persistence:** SQLite (`rusqlite`) in `~/Library/Application Support/MyMacStorage/` for settings, activity log, trash manifests, scan snapshots. Scan index in memory with optional on-disk cache.
 - **IPC:** Commands return small payloads. Large lists are paginated or streamed via events (never ship 5 million rows in one `invoke`). Use a generated TypeScript types file (`ts-rs` or `specta`) so Rust and TS types never drift.
 
 ## 5. Shared platform requirements
@@ -321,7 +321,7 @@ Each feature uses the same template: **Purpose · User stories · Functional req
 
 ### 6.7 / 6.8 Monitor and Compress — removed
 
-Removed from scope by the product owner on 2026-10-29. DuoBolt focuses on storage: no live system monitor and no media compression. Section numbers 6.9 onward are kept so existing references stay valid.
+Removed from scope by the product owner on 2026-10-29. MyMacStorage focuses on storage: no live system monitor and no media compression. Section numbers 6.9 onward are kept so existing references stay valid.
 
 ---
 

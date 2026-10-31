@@ -1,8 +1,8 @@
-# Claude Code Build Prompts — DuoBolt for Mac
+# Claude Code Build Prompts — MyMacStorage for Mac
 
 ## How to use
 
-1. Create an empty folder `duobolt`, put `PRD.md` in it, and run `claude` inside it.
+1. Create an empty folder `mymacstorage`, put `PRD.md` in it, and run `claude` inside it.
 2. Paste **Prompt 0 (Master)** first. It becomes your standing context.
 3. Save the "Project rules" block as `CLAUDE.md` in the repo root so every session follows it.
 4. Then run **Milestone prompts M0 → M10 one at a time**. Do not start the next until the previous one's acceptance checks pass.
@@ -13,7 +13,7 @@
 ## Project rules (save as `CLAUDE.md`)
 
 ```md
-# DuoBolt — project rules
+# MyMacStorage — project rules
 
 ## What this is
 A macOS 14+ disk analyzer / cleaner / duplicate finder. Full spec: PRD.md (source of truth).
@@ -54,7 +54,7 @@ Work in small commits. Before large changes, state a plan. When a PRD requiremen
 ## Prompt 0 — Master context (paste first)
 
 ```text
-You are the lead engineer building DuoBolt, a macOS 14+ desktop app (Apple Silicon + Intel) that analyzes disk usage, finds duplicates, and cleans junk safely. I am the product owner.
+You are the lead engineer building MyMacStorage, a macOS 14+ desktop app (Apple Silicon + Intel) that analyzes disk usage, finds duplicates, and cleans junk safely. I am the product owner.
 
 Read PRD.md fully before doing anything. It is the source of truth. Also read CLAUDE.md for the non-negotiable rules.
 
@@ -171,7 +171,7 @@ Milestone M4: the safe-delete subsystem and the Activity room (PRD 5.3, 6.9). Th
 Rust `core::trash`:
 1. `move_items(items, ctx) -> TrashBatch` using `NSFileManager trashItemAtURL:resultingItemURL:` via `objc2-foundation`, capturing the resulting Trash URL for each item.
 2. Pre-flight per item: exists, not a symlink escaping root, not in the protected denylist (/System, /usr, /bin, /sbin, /private/var/db, /Library/Apple, app bundle itself, the Trash, non-user volumes), metadata (inode/size/mtime) unchanged since listed. Failures are per-item, never abort the batch.
-3. SQLite (`rusqlite`, WAL) in `~/Library/Application Support/DuoBolt/`: tables `batches`, `batch_items` (original_path, trashed_path, size, status: in_trash | restored | emptied | failed, reason).
+3. SQLite (`rusqlite`, WAL) in `~/Library/Application Support/MyMacStorage/`: tables `batches`, `batch_items` (original_path, trashed_path, size, status: in_trash | restored | emptied | failed, reason).
 4. `undo_batch(id, item_ids?)`: move back from Trash, recreate parent dirs, handle conflicts (offer "(restored)" suffix), update statuses.
 5. `empty_trash()`: the ONLY permanent deletion, requires explicit confirmation token from UI, logs the batch as emptied; reconcile statuses on launch.
 6. After a batch, trigger `rescan_subtree` for affected parents to keep the index honest.
@@ -222,7 +222,7 @@ Rust:
 4. `build_cleanup_plan(selection)`, `execute_plan(plan)` → `trash::move_items`. Byte-dedupe across overlapping rules.
 5. Applications: discovery from /Applications, ~/Applications, /System/Applications (read-only); Info.plist parsing (`plist` crate); footprint via bundle-id exact matching in the Library locations in PRD 6.6; shared-container detection; last used date; architecture detection (Mach-O headers); signing info via `codesign` allow-listed or Security framework.
 6. Leftovers detector: Library entries whose bundle id has no installed app → category "Leftovers" (review).
-7. Uninstall plan: app + selected related files; polite quit for running app; never remove system apps or DuoBolt itself.
+7. Uninstall plan: app + selected related files; polite quit for running app; never remove system apps or MyMacStorage itself.
 
 UI: Cleanup room with category accordion (size, count, risk badge, explanation), item lists with checkboxes, default selection rules (only `safe` preselected), ReviewSheet, result banner. Wire the Overview "Review & Clear" button to a pre-filled safe plan. Applications room: sortable table (size, last used, name, source), details panel, uninstall flow with review of related files and confidence labels.
 

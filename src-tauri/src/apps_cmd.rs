@@ -8,15 +8,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
-use duobolt_core::apps::{self, App, Related};
-use duobolt_core::index::NodeId;
-use duobolt_core::models::{
+use mymacstorage_core::apps::{self, App, Related};
+use mymacstorage_core::index::NodeId;
+use mymacstorage_core::models::{
     AppDetails, AppsDoneEvent, AppsList, CategoryId, Room, ScanId, ScanOptions, TrashBatchResult,
 };
-use duobolt_core::scanner::bulk::BulkReader;
-use duobolt_core::scanner::{scan, ScanOutput};
-use duobolt_core::trash::{Context, MacTrash};
-use duobolt_core::{platform, AppError};
+use mymacstorage_core::scanner::bulk::BulkReader;
+use mymacstorage_core::scanner::{scan, ScanOutput};
+use mymacstorage_core::trash::{Context, MacTrash};
+use mymacstorage_core::{platform, AppError};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cleanup_cmd::CleanupState;
@@ -255,7 +255,10 @@ pub async fn app_icon(app: AppHandle, app_id: u32) -> Result<Option<String>, App
                 }
             })
             .collect();
-        let dir = home().join("Library/Application Support/DuoBolt/icons");
+        let dir = home()
+            .join("Library/Application Support")
+            .join(crate::settings::DATA_DIR)
+            .join("icons");
         std::fs::create_dir_all(&dir)?;
         let png = dir.join(format!("{safe}.png"));
         if !png.exists() && platform::icon_to_png(&icns, &png, ICON_PX).is_err() {

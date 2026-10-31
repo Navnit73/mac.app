@@ -3,7 +3,7 @@ import { useTrashStore } from '../state/trashStore'
 import Icon from './Icon'
 import Modal from './Modal'
 
-/** The only permanent deletion in DuoBolt, behind its own confirmation. */
+/** The only permanent deletion in MyMacStorage, behind its own confirmation. */
 export default function EmptyTrashDialog() {
   const empty = useTrashStore((s) => s.empty)
   const close = useTrashStore((s) => s.closeEmpty)
@@ -27,7 +27,7 @@ export default function EmptyTrashDialog() {
           </h2>
           <p className="mt-1 text-muted">
             Everything in the Trash is deleted for good, including items you put there outside
-            DuoBolt. This cannot be undone.
+            MyMacStorage. This cannot be undone.
           </p>
         </div>
         {p && (
@@ -39,18 +39,18 @@ export default function EmptyTrashDialog() {
               </dd>
             </div>
             <div>
-              <dt className="eyebrow">From DuoBolt</dt>
+              <dt className="eyebrow">From MyMacStorage</dt>
               <dd className="num text-lg font-semibold">
-                {formatBytes(p.duobolt_bytes)}
+                {formatBytes(p.mymacstorage_bytes)}
                 <span className="ml-1 text-xs font-normal text-muted">
-                  {formatCount(p.duobolt_items)} items
+                  {formatCount(p.mymacstorage_items)} items
                 </span>
               </dd>
             </div>
           </dl>
         )}
         <p className="text-xs text-muted">
-          DuoBolt asks Finder to empty the Trash. The first time, macOS asks whether DuoBolt may
+          MyMacStorage asks Finder to empty the Trash. The first time, macOS asks whether MyMacStorage may
           control Finder.
         </p>
         {empty?.error && (

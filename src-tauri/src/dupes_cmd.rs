@@ -7,14 +7,14 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
-use duobolt_core::duplicates::{self, candidates, find_duplicates, Session};
-use duobolt_core::index::NodeId;
-use duobolt_core::models::{
+use mymacstorage_core::duplicates::{self, candidates, find_duplicates, Session};
+use mymacstorage_core::index::NodeId;
+use mymacstorage_core::models::{
     DupDoneEvent, DupGroupsPage, DupOptions, DupSavings, DupStatus, FileKind, KeepRule, Room,
     ScanId, TrashBatchResult,
 };
-use duobolt_core::trash::{Context, MacTrash};
-use duobolt_core::{platform, AppError};
+use mymacstorage_core::trash::{Context, MacTrash};
+use mymacstorage_core::{platform, AppError};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::scan::ScanManager;

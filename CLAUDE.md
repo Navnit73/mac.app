@@ -1,4 +1,4 @@
-# DuoBolt — project rules
+# MyMacStorage — project rules
 
 ## What this is
 A macOS 14+ disk analyzer / cleaner / duplicate finder. Full spec: prd/PRD.md (source of truth).

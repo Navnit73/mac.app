@@ -111,7 +111,9 @@ fn protected_in_home(rel: &[&str]) -> Option<&'static str> {
             Some("A standard folder of your home folder cannot be moved. Items inside it can.")
         }
         // Private keys cannot be downloaded again.
-        [".ssh", ..] | [".gnupg", ..] => Some("Holds your private keys. DuoBolt never moves it."),
+        [".ssh", ..] | [".gnupg", ..] => {
+            Some("Holds your private keys. MyMacStorage never moves it.")
+        }
         ["library", "keychains", ..] => {
             Some("Keychains hold your passwords and certificates. They cannot be moved.")
         }
@@ -176,7 +178,7 @@ pub struct Candidate {
 pub struct Context {
     /// Scan roots; items must lie strictly inside one of them.
     pub roots: Vec<PathBuf>,
-    /// DuoBolt's own `.app` bundle, if running from one.
+    /// MyMacStorage's own `.app` bundle, if running from one.
     pub app_bundle: Option<PathBuf>,
 }
 
@@ -212,7 +214,7 @@ pub fn preflight(c: &Candidate, ctx: &Context) -> Result<(), String> {
 
     if let Some(app) = &ctx.app_bundle {
         if path.starts_with(app) || app.starts_with(path) {
-            return Err("DuoBolt cannot move itself.".into());
+            return Err("MyMacStorage cannot move itself.".into());
         }
     }
     if !ctx
@@ -448,7 +450,7 @@ pub fn empty_trash_via_finder() -> Result<(), AppError> {
         let msg = String::from_utf8_lossy(&out.stderr);
         if msg.contains("-1743") {
             Err(AppError::PermissionDenied(
-                "DuoBolt is not allowed to control Finder. Allow it in System Settings > Privacy & Security > Automation.".into(),
+                "MyMacStorage is not allowed to control Finder. Allow it in System Settings > Privacy & Security > Automation.".into(),
             ))
         } else {
             Err(AppError::Io(format!(
@@ -714,8 +716,8 @@ mod tests {
         let out = move_items(&[candidate(&e.root)], &e.ctx, &e.trash);
         assert!(out.moved.is_empty(), "the scan root itself is never moved");
 
-        let app = e.root.join("DuoBolt.app");
-        file(&app.join("Contents/MacOS/duobolt"), b"bin");
+        let app = e.root.join("MyMacStorage.app");
+        file(&app.join("Contents/MacOS/mymacstorage"), b"bin");
         let ctx = Context {
             roots: e.ctx.roots.clone(),
             app_bundle: Some(app.clone()),
@@ -863,7 +865,7 @@ mod tests {
         }
     }
 
-    /// Uses the real Trash. Run by hand: `cargo test -p duobolt-core real_trash -- --ignored`.
+    /// Uses the real Trash. Run by hand: `cargo test -p mymacstorage-core real_trash -- --ignored`.
     #[test]
     #[ignore]
     fn real_trash_move_and_undo() {
@@ -875,7 +877,7 @@ mod tests {
         };
         let mut cands = Vec::new();
         for i in 0..3 {
-            let f = root.join(format!("duobolt-test-{i}.txt"));
+            let f = root.join(format!("mymacstorage-test-{i}.txt"));
             file(&f, b"hello");
             cands.push(candidate(&f));
         }

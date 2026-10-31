@@ -22,7 +22,7 @@ function buildSegments(o: OverviewSummary): { segments: Segment[]; free: Segment
       bytes: o.kept_bytes,
       color: 'var(--kept)',
       route: '/space',
-      note: 'Files DuoBolt does not suggest clearing.',
+      note: 'Files MyMacStorage does not suggest clearing.',
     },
     ...o.categories
       .filter((c) => c.analyzed && c.bytes > 0)

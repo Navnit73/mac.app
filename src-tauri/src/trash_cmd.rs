@@ -7,16 +7,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use duobolt_core::activity::{self, Store};
-use duobolt_core::index::{NodeId, Tree};
-use duobolt_core::models::{
+use mymacstorage_core::activity::{self, Store};
+use mymacstorage_core::index::{NodeId, Tree};
+use mymacstorage_core::models::{
     BatchPage, BatchSummary, EmptyTrashPrep, Risk, Room, ScanId, TrashBatchResult, TrashPreview,
     TrashPreviewItem, UndoResult, WeeklyStats,
 };
-use duobolt_core::scanner::bulk::BulkReader;
-use duobolt_core::scanner::{rescan_subtree, ScanOutput};
-use duobolt_core::trash::{self, Candidate, Context, Expected, MacTrash, MAX_BATCH};
-use duobolt_core::{overview, platform, space, AppError};
+use mymacstorage_core::scanner::bulk::BulkReader;
+use mymacstorage_core::scanner::{rescan_subtree, ScanOutput};
+use mymacstorage_core::trash::{self, Candidate, Context, Expected, MacTrash, MAX_BATCH};
+use mymacstorage_core::{overview, platform, space, AppError};
 use tauri::State;
 
 use crate::scan::ScanManager;
@@ -42,7 +42,10 @@ pub(crate) fn now() -> i64 {
 }
 
 fn db_path() -> PathBuf {
-    home().join("Library/Application Support/DuoBolt/activity.sqlite")
+    home()
+        .join("Library/Application Support")
+        .join(crate::settings::DATA_DIR)
+        .join("activity.sqlite")
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -66,7 +69,7 @@ impl TrashState {
     }
 }
 
-/// On launch: mark items that left the Trash while DuoBolt was closed.
+/// On launch: mark items that left the Trash while MyMacStorage was closed.
 pub fn reconcile_on_launch(state: &TrashState) {
     if let Err(e) = state.with_store(|s| s.reconcile()) {
         tracing::warn!("activity reconcile failed: {e}");
@@ -90,7 +93,7 @@ fn candidates(tree: &Tree, ids: &[NodeId]) -> Result<Vec<(Candidate, u64, NodeId
         }
         let Some(n) = tree.node(id) else { continue };
         // Gone from disk at the last refresh; a stale id from the UI must not resolve again.
-        if n.has(duobolt_core::index::flags::DELETED) {
+        if n.has(mymacstorage_core::index::flags::DELETED) {
             continue;
         }
         let mut parent = n.parent;
@@ -184,7 +187,7 @@ pub async fn preview_trash(
                 let name = space::display_name(&out.tree, id);
                 let n = out.tree.node(id);
                 let is_dir = n.is_some_and(|n| n.is_dir());
-                let pkg = n.is_some_and(|n| n.has(duobolt_core::index::flags::PACKAGE));
+                let pkg = n.is_some_and(|n| n.has(mymacstorage_core::index::flags::PACKAGE));
                 (
                     c,
                     size,
@@ -312,8 +315,8 @@ pub async fn prepare_empty_trash(
     *lock(&trash_state.token) = Some((token.clone(), Instant::now()));
     Ok(EmptyTrashPrep {
         token,
-        duobolt_items: items,
-        duobolt_bytes: bytes,
+        mymacstorage_items: items,
+        mymacstorage_bytes: bytes,
         trash_bytes: trash::user_trash_bytes(),
     })
 }
@@ -388,7 +391,10 @@ pub async fn get_weekly_stats(
 pub async fn export_activity_csv(trash_state: State<'_, TrashState>) -> Result<String, AppError> {
     let csv = trash_state.with_store(|s| s.csv())?;
     let date = activity::iso_utc(now());
-    let stem = format!("DuoBolt activity {}", date.get(..10).unwrap_or("export"));
+    let stem = format!(
+        "MyMacStorage activity {}",
+        date.get(..10).unwrap_or("export")
+    );
     let path = activity::write_new_file(&home().join("Downloads"), &stem, &csv)?;
     let _ = platform::reveal_in_finder(&path);
     Ok(path.to_string_lossy().into_owned())

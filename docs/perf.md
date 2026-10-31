@@ -10,7 +10,7 @@ Target (PRD 5.1): 1M files indexed in under 60 s.
 ### Real disk: `examples/scan_bench`
 
 ```
-cargo run --release -p duobolt-core --example scan_bench -- <dir> [std|bulk]
+cargo run --release -p mymacstorage-core --example scan_bench -- <dir> [std|bulk]
 ```
 
 `~/Library/Caches` (316,641 files, 20,209 dirs, 12.6 GB allocated):
@@ -26,7 +26,7 @@ Not yet measured: a cold cache, an external drive, and a 2M+ file dataset (done 
 
 `BulkReader` is the default; `StdReader` is the fallback for filesystems without bulk support.
 
-### Engine only: `cargo bench -p duobolt-core --bench scan`
+### Engine only: `cargo bench -p mymacstorage-core --bench scan`
 
 1M synthetic entries over an in-memory filesystem (tree building, aggregation, worker and
 collector pipeline, no disk I/O): about 32 ms per scan. The engine is not the bottleneck;
@@ -54,7 +54,7 @@ real scans are bound by filesystem calls.
 
 Target (PRD 6.2): first page for "report" on a 1M-file index in under 100 ms.
 
-Criterion, 1M synthetic names (`cargo bench -p duobolt-core --bench scan -- search_1m`):
+Criterion, 1M synthetic names (`cargo bench -p mymacstorage-core --bench scan -- search_1m`):
 
 | Step | Time |
 |---|---|

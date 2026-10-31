@@ -6,12 +6,12 @@
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use duobolt_core::index::NodeId;
-use duobolt_core::models::{
+use mymacstorage_core::index::NodeId;
+use mymacstorage_core::models::{
     ChartMode, ChartNode, ChildrenPage, Crumb, FdaStatus, FdaTarget, NodeDetails, OverviewSummary,
     ScanId, SmartGroupSummary, SortKey, TopFilesResult, TopFilters,
 };
-use duobolt_core::{inspect, overview, platform, space, AppError};
+use mymacstorage_core::{inspect, overview, platform, space, AppError};
 use tauri::State;
 
 use crate::cleanup_cmd::CleanupState;
@@ -41,7 +41,7 @@ pub async fn open_fda_settings() -> Result<(), AppError> {
     platform::open_full_disk_access_settings()
 }
 
-/// The app to turn on in Full Disk Access (DuoBolt, or the app hosting it while developing).
+/// The app to turn on in Full Disk Access (MyMacStorage, or the app hosting it while developing).
 #[tauri::command]
 pub async fn get_fda_target() -> Result<Option<FdaTarget>, AppError> {
     Ok(platform::fda_target())

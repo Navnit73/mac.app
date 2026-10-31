@@ -88,7 +88,7 @@ pub fn full_disk_access(home: &Path) -> FdaStatus {
 }
 
 /// Which app needs Full Disk Access for this process. macOS asks the "responsible" app: the
-/// `.app` DuoBolt runs from, or, for a bare binary (development), the first app bundle among
+/// `.app` MyMacStorage runs from, or, for a bare binary (development), the first app bundle among
 /// its parent processes (the terminal or editor that launched it). `None` when neither is found.
 pub fn fda_target() -> Option<FdaTarget> {
     let own = std::env::current_exe().ok().and_then(|p| outermost_app(&p));
@@ -121,7 +121,7 @@ fn target_for(app: PathBuf, is_self: bool) -> FdaTarget {
         })
         .filter(|n| !n.is_empty())
         .or_else(|| app.file_stem().map(|s| s.to_string_lossy().into_owned()))
-        .unwrap_or_else(|| "DuoBolt".into());
+        .unwrap_or_else(|| "MyMacStorage".into());
     FdaTarget {
         name,
         path: app.to_string_lossy().into_owned(),
@@ -544,7 +544,7 @@ mod tests {
             Some(PathBuf::from("/Applications/Antigravity IDE.app"))
         );
         assert_eq!(
-            outermost_app(Path::new("/Users/me/target/debug/duobolt")),
+            outermost_app(Path::new("/Users/me/target/debug/mymacstorage")),
             None
         );
     }

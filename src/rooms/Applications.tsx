@@ -54,7 +54,7 @@ const CONFIDENCE: Record<Confidence, { label: string; hint: string; cls: string 
   },
   Shared: {
     label: 'Shared',
-    hint: 'Used by several apps from the same developer, so DuoBolt keeps it.',
+    hint: 'Used by several apps from the same developer, so MyMacStorage keeps it.',
     cls: 'badge-careful',
   },
 }
@@ -299,7 +299,7 @@ function UninstallDialog({
             <span>
               <span className="font-medium">Quit {app.name} first</span>
               <span className="block text-xs text-muted">
-                It is open. DuoBolt asks it to quit the normal way; it may ask you to save.
+                It is open. MyMacStorage asks it to quit the normal way; it may ask you to save.
               </span>
             </span>
           </label>
@@ -372,7 +372,7 @@ export default function Applications() {
         </h1>
         <p className="max-w-sm text-muted">
           {error ??
-            'DuoBolt looks at every app and the settings, caches and data it keeps in your Library.'}
+            'MyMacStorage looks at every app and the settings, caches and data it keeps in your Library.'}
         </p>
         {error && (
           <button type="button" className="btn" onClick={() => void scan()}>

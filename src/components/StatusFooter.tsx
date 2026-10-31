@@ -27,7 +27,7 @@ export default function StatusFooter() {
         className="ml-auto flex items-center gap-1.5 rounded px-1.5 hover:bg-hover"
         onClick={() => fda === 'Denied' && void openSettings()}
         title={
-          fda === 'Denied' ? 'Click to open System Settings' : 'DuoBolt can read protected folders'
+          fda === 'Denied' ? 'Click to open System Settings' : 'MyMacStorage can read protected folders'
         }
       >
         <Icon

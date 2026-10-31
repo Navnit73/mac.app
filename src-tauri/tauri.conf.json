@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "DuoBolt",
+  "productName": "MyMacStorage",
   "version": "0.1.0",
-  "identifier": "com.duobolt.app",
+  "identifier": "com.mymacstorage.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "DuoBolt",
+        "title": "MyMacStorage",
         "width": 1200,
         "height": 780,
         "minWidth": 1000,

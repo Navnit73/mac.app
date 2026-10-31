@@ -8,10 +8,10 @@ use std::os::unix::fs::{symlink, PermissionsExt};
 use std::path::Path;
 use std::sync::atomic::AtomicBool;
 
-use duobolt_core::index::{flags, NodeKind, ROOT};
-use duobolt_core::models::{ScanOptions, SkipReason};
-use duobolt_core::scanner::scan;
-use duobolt_core::scanner::std_reader::StdReader;
+use mymacstorage_core::index::{flags, NodeKind, ROOT};
+use mymacstorage_core::models::{ScanOptions, SkipReason};
+use mymacstorage_core::scanner::scan;
+use mymacstorage_core::scanner::std_reader::StdReader;
 
 /// Reference: plain recursive lstat walk, hard links once, no symlink following.
 fn reference(dir: &Path, seen: &mut HashSet<(u64, u64)>, tot: &mut (u64, u64, u64)) {

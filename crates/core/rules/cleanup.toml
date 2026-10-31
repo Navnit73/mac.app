@@ -1,4 +1,4 @@
-# DuoBolt cleanup rules. Embedded in the app at build time; updated only with app updates.
+# MyMacStorage cleanup rules. Embedded in the app at build time; updated only with app updates.
 #
 # Each rule finds items under a fixed root. Fields:
 #   id, category, name, description   what the user sees
@@ -14,7 +14,7 @@
 #   app_from_name          the item's own name is the bundle id of the app it belongs to
 #   min_age_days           newest change at least this old (folders: anything inside)
 #   min_size_mb            skip smaller items
-#   report_only, guidance  shown with advice, never removed by DuoBolt
+#   report_only, guidance  shown with advice, never removed by MyMacStorage
 #
 # Rules are applied in order. An item claimed by an earlier rule is never counted again.
 

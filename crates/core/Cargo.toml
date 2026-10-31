@@ -1,6 +1,6 @@
 [package]
-name = "duobolt-core"
-description = "DuoBolt core: all filesystem logic, no UI or Tauri dependency"
+name = "mymacstorage-core"
+description = "MyMacStorage core: all filesystem logic, no UI or Tauri dependency"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

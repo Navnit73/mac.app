@@ -1,7 +1,7 @@
 #!/bin/sh
-# Generate the deterministic fixture tree. Usage: scripts/gen-fixtures [dir] [--big]  (default: $TMPDIR/duobolt-fixtures)
+# Generate the deterministic fixture tree. Usage: scripts/gen-fixtures [dir] [--big]  (default: $TMPDIR/mymacstorage-fixtures)
 set -e
 cd "$(dirname "$0")/.."
-DIR="${1:-${TMPDIR:-/tmp}/duobolt-fixtures}"
+DIR="${1:-${TMPDIR:-/tmp}/mymacstorage-fixtures}"
 [ $# -gt 0 ] && shift
-cargo run -q -p duobolt-fixtures -- "$DIR" "$@"
+cargo run -q -p mymacstorage-fixtures -- "$DIR" "$@"

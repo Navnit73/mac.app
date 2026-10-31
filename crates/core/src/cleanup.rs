@@ -744,7 +744,7 @@ impl Session {
                 .ok_or_else(|| AppError::NotFound("not a cleanup item".into()))?;
             if on && !selectable(rules, it) {
                 return Err(AppError::InvalidInput(
-                    "DuoBolt does not remove this; follow the advice shown instead.".into(),
+                    "MyMacStorage does not remove this; follow the advice shown instead.".into(),
                 ));
             }
             if on && risk_of(rules, it.source) == Risk::Careful && (ids.len() != 1 || !confirmed) {

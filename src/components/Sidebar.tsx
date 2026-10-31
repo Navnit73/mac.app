@@ -39,7 +39,7 @@ export default function Sidebar() {
         <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-accent text-accent-fg">
           <Icon name="bolt" size={16} strokeWidth={2.2} />
         </span>
-        <span className="font-display text-[15px] font-semibold tracking-tight">DuoBolt</span>
+        <span className="font-display text-[15px] font-semibold tracking-tight">MyMacStorage</span>
       </div>
       <div className="eyebrow px-5 pb-2">Rooms</div>
       <ul className="flex flex-col gap-0.5 px-2.5">

@@ -7,7 +7,7 @@ import Icon from './Icon'
  * Explains why some folders are skipped and how to fix it. Shown only when access is denied.
  *
  * macOS never lists an app under Full Disk Access by itself: it has to be added with the +
- * button. While developing, DuoBolt is a bare binary, so macOS checks the app that started it
+ * button. While developing, MyMacStorage is a bare binary, so macOS checks the app that started it
  * (an editor or Terminal); Rust works out which one and the steps name it.
  */
 export default function FdaBanner() {
@@ -36,7 +36,7 @@ export default function FdaBanner() {
 
   if (status !== 'Denied' || dismissed) return null
 
-  const app = target?.name ?? 'DuoBolt'
+  const app = target?.name ?? 'MyMacStorage'
   const steps = [
     <>Open System Settings &gt; Privacy &amp; Security &gt; Full Disk Access.</>,
     <>
@@ -97,9 +97,9 @@ export default function FdaBanner() {
         <div className="px-5 pb-4 pl-12">
           {target && !target.is_self && (
             <p className="text-muted">
-              DuoBolt is running inside <b className="text-fg">{app}</b>, so macOS checks {app}
-              &rsquo;s access, not DuoBolt&rsquo;s. Once DuoBolt is installed as an app, you turn on
-              DuoBolt itself instead.
+              MyMacStorage is running inside <b className="text-fg">{app}</b>, so macOS checks {app}
+              &rsquo;s access, not MyMacStorage&rsquo;s. Once MyMacStorage is installed as an app, you turn on
+              MyMacStorage itself instead.
             </p>
           )}
           <ol className="mt-3 flex flex-col gap-1.5">

@@ -6,20 +6,20 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
-use duobolt_core::cleanup::{analyze, Analysis, Rules, Session};
-use duobolt_core::index::NodeId;
-use duobolt_core::models::{
+use mymacstorage_core::cleanup::{analyze, Analysis, Rules, Session};
+use mymacstorage_core::index::NodeId;
+use mymacstorage_core::models::{
     CategoryId, CleanupItemsPage, CleanupPlan, CleanupSummary, Risk, Room, ScanId, SelectMode,
     TrashBatchResult,
 };
-use duobolt_core::trash::{Context, MacTrash, MAX_BATCH};
-use duobolt_core::{apps, platform, AppError};
+use mymacstorage_core::trash::{Context, MacTrash, MAX_BATCH};
+use mymacstorage_core::{apps, platform, AppError};
 use tauri::{AppHandle, Manager};
 
 use crate::scan::ScanManager;
 use crate::trash_cmd::{home, now, refresh, TrashState};
 
-/// How long apps get to quit when the user asks DuoBolt to quit them first.
+/// How long apps get to quit when the user asks MyMacStorage to quit them first.
 const QUIT_WAIT: Duration = Duration::from_secs(10);
 
 struct Cached {

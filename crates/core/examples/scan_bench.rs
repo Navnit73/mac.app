@@ -1,4 +1,4 @@
-//! Real-disk scan benchmark: `cargo run --release -p duobolt-core --example scan_bench -- <dir> [std|bulk] [--views]`
+//! Real-disk scan benchmark: `cargo run --release -p mymacstorage-core --example scan_bench -- <dir> [std|bulk] [--views]`
 //!
 //! `--views` also times the Overview / Space / Inspector queries on the scanned tree.
 
@@ -6,12 +6,14 @@ use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
-use duobolt_core::find::{search, SearchIndex};
-use duobolt_core::models::{ChartMode, ScanOptions, SearchMode, SearchQuery, SortKey, TopFilters};
-use duobolt_core::scanner::bulk::BulkReader;
-use duobolt_core::scanner::scan;
-use duobolt_core::scanner::std_reader::StdReader;
-use duobolt_core::{apps, cleanup, index::ROOT, overview, platform, space};
+use mymacstorage_core::find::{search, SearchIndex};
+use mymacstorage_core::models::{
+    ChartMode, ScanOptions, SearchMode, SearchQuery, SortKey, TopFilters,
+};
+use mymacstorage_core::scanner::bulk::BulkReader;
+use mymacstorage_core::scanner::scan;
+use mymacstorage_core::scanner::std_reader::StdReader;
+use mymacstorage_core::{apps, cleanup, index::ROOT, overview, platform, space};
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -141,7 +143,7 @@ fn run_apps() {
 }
 
 /// Rule results on a real scan: per-rule totals, the largest items, leftovers and timings.
-fn run_cleanup(out: &duobolt_core::scanner::ScanOutput) {
+fn run_cleanup(out: &mymacstorage_core::scanner::ScanOutput) {
     let home = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default());
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -224,7 +226,7 @@ fn run_cleanup(out: &duobolt_core::scanner::ScanOutput) {
     }
 }
 
-fn run_views(out: &duobolt_core::scanner::ScanOutput) {
+fn run_views(out: &mymacstorage_core::scanner::ScanOutput) {
     let home = std::path::PathBuf::from(std::env::var("HOME").unwrap_or_default());
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -318,9 +320,9 @@ fn run_views(out: &duobolt_core::scanner::ScanOutput) {
     }
 }
 
-fn run_dupes(out: &duobolt_core::scanner::ScanOutput) {
-    use duobolt_core::duplicates::{candidates, find_duplicates, Session};
-    use duobolt_core::models::DupOptions;
+fn run_dupes(out: &mymacstorage_core::scanner::ScanOutput) {
+    use mymacstorage_core::duplicates::{candidates, find_duplicates, Session};
+    use mymacstorage_core::models::DupOptions;
     use std::sync::atomic::AtomicBool;
     let t = Instant::now();
     let cands = candidates(&out.tree, &DupOptions::default());
@@ -354,7 +356,7 @@ fn run_dupes(out: &duobolt_core::scanner::ScanOutput) {
     let s = Session::new(
         found,
         hashing.as_millis() as u64,
-        &duobolt_core::platform::private_size,
+        &mymacstorage_core::platform::private_size,
     );
     println!(
         "dupes: {} groups, {} files, {:.2} GB could be freed, {} skipped, hashing {:.1} s (last stage: {})",

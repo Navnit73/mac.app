@@ -1,4 +1,4 @@
-//! DuoBolt core: all filesystem logic. No UI or Tauri dependency.
+//! MyMacStorage core: all filesystem logic. No UI or Tauri dependency.
 
 pub mod activity;
 pub mod apps;

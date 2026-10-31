@@ -273,8 +273,8 @@ pub fn locked_reason(app: &App) -> Option<String> {
         return Some("Part of macOS. It cannot be removed.".into());
     }
     let own = trash::own_app_bundle();
-    if id == "com.duobolt.app" || own.as_deref() == Some(app.path.as_path()) {
-        return Some("DuoBolt cannot remove itself.".into());
+    if id == "com.mymacstorage.app" || own.as_deref() == Some(app.path.as_path()) {
+        return Some("MyMacStorage cannot remove itself.".into());
     }
     None
 }
@@ -1071,7 +1071,7 @@ mod tests {
         s.source = AppSource::System;
         s.path = "/System/Applications/Notes.app".into();
         assert!(locked_reason(&s).is_some());
-        assert!(locked_reason(&app("DuoBolt", "com.duobolt.app")).is_some());
+        assert!(locked_reason(&app("MyMacStorage", "com.mymacstorage.app")).is_some());
         assert!(locked_reason(&app("Foo", "com.foo.bar")).is_none());
     }
 

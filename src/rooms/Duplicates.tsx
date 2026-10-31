@@ -100,7 +100,7 @@ function Options() {
       <div>
         <h2 className="text-lg font-semibold">Find files that exist twice</h2>
         <p className="mt-1 text-muted">
-          DuoBolt compares contents, not names, so only true copies are grouped. You choose which
+          MyMacStorage compares contents, not names, so only true copies are grouped. You choose which
           copy to keep; one copy of every file is always kept.
         </p>
       </div>

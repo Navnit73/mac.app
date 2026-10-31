@@ -6,9 +6,9 @@ use std::io::Write;
 use std::os::unix::fs::symlink;
 use std::path::Path;
 
-use duobolt_core::scanner::bulk::BulkReader;
-use duobolt_core::scanner::reader::{DirReader, RawEntry};
-use duobolt_core::scanner::std_reader::StdReader;
+use mymacstorage_core::scanner::bulk::BulkReader;
+use mymacstorage_core::scanner::reader::{DirReader, RawEntry};
+use mymacstorage_core::scanner::std_reader::StdReader;
 
 fn by_name(r: &dyn DirReader, dir: &Path) -> BTreeMap<Vec<u8>, RawEntry> {
     let l = r.read_dir(dir).unwrap();
@@ -55,7 +55,7 @@ fn bulk_matches_std_on_files_dirs_symlinks_and_links() {
         assert_eq!(x.dev, y.dev, "dev {name:?}");
         assert_eq!(x.mtime, y.mtime, "mtime {name:?}");
         assert_eq!(x.st_flags, y.st_flags, "flags {name:?}");
-        if x.kind == duobolt_core::index::NodeKind::File {
+        if x.kind == mymacstorage_core::index::NodeKind::File {
             assert_eq!(x.nlink, y.nlink, "nlink {name:?}");
             assert_eq!(x.size_logical, y.size_logical, "logical {name:?}");
             assert_eq!(x.size_alloc, y.size_alloc, "alloc {name:?}");
@@ -65,7 +65,7 @@ fn bulk_matches_std_on_files_dirs_symlinks_and_links() {
 
 #[test]
 fn bulk_reports_open_errors() {
-    use duobolt_core::scanner::reader::ReadError;
+    use mymacstorage_core::scanner::reader::ReadError;
     let r = BulkReader::new();
     assert_eq!(
         r.read_dir(Path::new("/definitely/not/here")).unwrap_err(),

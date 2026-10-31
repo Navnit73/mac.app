@@ -1,5 +1,5 @@
 [package]
-name = "duobolt-fixtures"
+name = "mymacstorage-fixtures"
 description = "Deterministic fixture tree generator for tests"
 version.workspace = true
 edition.workspace = true

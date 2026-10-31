@@ -877,7 +877,7 @@ fn clone_one(
 ) -> Result<PathBuf, String> {
     trash::preflight(&dup.candidate(), ctx)?;
     let parent = dup.path.parent().ok_or("This path has no parent folder.")?;
-    let tmp = parent.join(format!(".duobolt-clone-{}-{n}", std::process::id()));
+    let tmp = parent.join(format!(".mymacstorage-clone-{}-{n}", std::process::id()));
     platform::clone_file(kept, &tmp).map_err(|e| format!("Could not create a clone: {e}"))?;
     let cleanup = |e: String| {
         let _ = std::fs::remove_file(&tmp);
@@ -1267,7 +1267,7 @@ mod tests {
             .filter(|x| {
                 x.file_name()
                     .to_string_lossy()
-                    .starts_with(".duobolt-clone")
+                    .starts_with(".mymacstorage-clone")
             })
             .count();
         assert_eq!(leftovers, 0);

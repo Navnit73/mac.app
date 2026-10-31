@@ -1,20 +1,20 @@
 [package]
-name = "duobolt"
-description = "DuoBolt Tauri shell"
+name = "mymacstorage"
+description = "MyMacStorage Tauri shell"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
 [lib]
-name = "duobolt_lib"
+name = "mymacstorage_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-duobolt-core = { path = "../crates/core" }
+mymacstorage-core = { path = "../crates/core" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tauri = { version = "2", features = ["protocol-asset"] }

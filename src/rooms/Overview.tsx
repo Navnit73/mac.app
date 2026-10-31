@@ -230,7 +230,7 @@ function Dashboard({ scanId, partial }: { scanId: number; partial: boolean }) {
         <InfoCard
           label="Skipped"
           value={formatCount(o.skipped)}
-          sub={o.skipped > 0 ? 'Paths DuoBolt could not count' : 'Everything was readable'}
+          sub={o.skipped > 0 ? 'Paths MyMacStorage could not count' : 'Everything was readable'}
           action={
             o.skipped > 0 ? { text: 'View report', onClick: () => setReportOpen(true) } : undefined
           }

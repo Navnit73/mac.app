@@ -24,5 +24,5 @@ incremental = true
 debug = false
 opt-level = 3
 
-[profile.dev.package.duobolt-core]
+[profile.dev.package.mymacstorage-core]
 opt-level = 3

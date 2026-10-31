@@ -373,7 +373,7 @@ impl Store {
         Ok((result, restored_paths))
     }
 
-    /// Items DuoBolt moved that are still in the Trash: (count, bytes).
+    /// Items MyMacStorage moved that are still in the Trash: (count, bytes).
     pub fn in_trash_totals(&self) -> Result<(u32, u64), AppError> {
         self.conn
             .query_row(
@@ -421,7 +421,7 @@ impl Store {
         Ok(changed)
     }
 
-    /// After an Empty Trash that succeeded, every item DuoBolt put there is gone.
+    /// After an Empty Trash that succeeded, every item MyMacStorage put there is gone.
     pub fn mark_all_emptied(&mut self) -> Result<u32, AppError> {
         self.conn
             .execute(

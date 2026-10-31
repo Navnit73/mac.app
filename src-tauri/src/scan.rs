@@ -6,16 +6,16 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
-use duobolt_core::find::{self, SearchIndex};
-use duobolt_core::index::NodeId;
-use duobolt_core::models::{
+use mymacstorage_core::find::{self, SearchIndex};
+use mymacstorage_core::index::NodeId;
+use mymacstorage_core::models::{
     ReportPage, ScanDoneEvent, ScanId, ScanOptions, ScanProgress, ScanProgressEvent, ScanState,
     ScanStatus, ScanSummary,
 };
-use duobolt_core::models::{SearchQuery, SearchResult};
-use duobolt_core::scanner::bulk::BulkReader;
-use duobolt_core::scanner::{rescan_subtree as core_rescan, scan, ScanOutput};
-use duobolt_core::AppError;
+use mymacstorage_core::models::{SearchQuery, SearchResult};
+use mymacstorage_core::scanner::bulk::BulkReader;
+use mymacstorage_core::scanner::{rescan_subtree as core_rescan, scan, ScanOutput};
+use mymacstorage_core::AppError;
 use tauri::{AppHandle, Emitter, State};
 
 const MAX_ROOTS: usize = 16;

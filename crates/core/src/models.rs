@@ -174,16 +174,16 @@ pub enum FdaStatus {
     Unknown,
 }
 
-/// The app macOS checks for Full Disk Access: DuoBolt itself when it runs as an app, or the app
+/// The app macOS checks for Full Disk Access: MyMacStorage itself when it runs as an app, or the app
 /// that started it (Terminal, an editor) while developing.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 pub struct FdaTarget {
-    /// Display name, like "DuoBolt" or "Visual Studio Code".
+    /// Display name, like "MyMacStorage" or "Visual Studio Code".
     pub name: String,
     /// The `.app` bundle to add in System Settings.
     pub path: String,
-    /// False when another app hosts DuoBolt, so access must be given to that app.
+    /// False when another app hosts MyMacStorage, so access must be given to that app.
     pub is_self: bool,
 }
 
@@ -599,7 +599,7 @@ impl Room {
 pub enum ItemStatus {
     InTrash,
     Restored,
-    /// Gone from the Trash (emptied by the user or by DuoBolt).
+    /// Gone from the Trash (emptied by the user or by MyMacStorage).
     Emptied,
     Failed,
     Skipped,
@@ -734,9 +734,9 @@ pub struct UndoResult {
 pub struct EmptyTrashPrep {
     /// Pass back to `empty_trash` within 60 seconds to confirm.
     pub token: String,
-    pub duobolt_items: u32,
+    pub mymacstorage_items: u32,
     #[ts(type = "number")]
-    pub duobolt_bytes: u64,
+    pub mymacstorage_bytes: u64,
     /// Size of the whole Trash, when it can be read (needs Full Disk Access).
     #[ts(type = "number | null")]
     pub trash_bytes: Option<u64>,
@@ -953,7 +953,7 @@ pub struct CleanupItem {
     pub is_dir: bool,
     /// Name of the running app that uses this, if any. Such items are not selected by default.
     pub running_app: Option<String>,
-    /// Shown but never removed by DuoBolt; `guidance` says what to do instead.
+    /// Shown but never removed by MyMacStorage; `guidance` says what to do instead.
     pub report_only: bool,
     pub guidance: Option<String>,
     pub selected: bool,
@@ -1065,7 +1065,7 @@ pub enum RelatedKind {
     SystemSupport,
 }
 
-/// How sure DuoBolt is that a file belongs to the app.
+/// How sure MyMacStorage is that a file belongs to the app.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
 pub enum Confidence {
