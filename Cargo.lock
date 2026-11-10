@@ -2182,7 +2182,7 @@ dependencies = [
 
 [[package]]
 name = "mymacstorage"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "mymacstorage-core",
  "reqwest",
@@ -2198,7 +2198,7 @@ dependencies = [
 
 [[package]]
 name = "mymacstorage-core"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "blake3",
  "criterion",
@@ -2226,7 +2226,7 @@ dependencies = [
 
 [[package]]
 name = "mymacstorage-fixtures"
-version = "0.1.0"
+version = "0.1.1"
 
 [[package]]
 name = "native-tls"
