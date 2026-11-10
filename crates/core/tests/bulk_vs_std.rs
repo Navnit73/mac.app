@@ -72,3 +72,51 @@ fn bulk_reports_open_errors() {
         ReadError::Vanished
     );
 }
+
+#[test]
+fn apfs_clones_counted_once() {
+    use mymacstorage_core::models::ScanOptions;
+    use mymacstorage_core::scanner::scan;
+    use std::process::Command;
+    use std::sync::atomic::AtomicBool;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let d = tmp.path().canonicalize().unwrap();
+    let size = 4 * 1024 * 1024;
+    File::create(d.join("orig.bin"))
+        .unwrap()
+        .write_all(&vec![3u8; size])
+        .unwrap();
+    for i in 0..5 {
+        let ok = Command::new("cp")
+            .arg("-c")
+            .arg(d.join("orig.bin"))
+            .arg(d.join(format!("clone-{i}.bin")))
+            .status()
+            .is_ok_and(|s| s.success());
+        if !ok {
+            eprintln!("skipping: temp dir is not on APFS");
+            return;
+        }
+    }
+    let b = by_name(&BulkReader::new(), &d);
+    let clone = &b[&b"clone-0.bin".to_vec()];
+    assert_ne!(clone.clone_id, 0, "clone should report a clone id");
+    assert_eq!(clone.private_alloc, 0, "pure clone holds no private bytes");
+    assert_eq!(clone.clone_id, b[&b"orig.bin".to_vec()].clone_id);
+
+    let out = scan(
+        &BulkReader::new(),
+        std::slice::from_ref(&d),
+        &ScanOptions::default(),
+        &AtomicBool::new(false),
+        &mut |_| {},
+    )
+    .unwrap();
+    let total = out.summary.total_alloc;
+    // Six names, one copy of the data on disk.
+    assert!(
+        total >= size as u64 && total < 2 * size as u64,
+        "six clones of a {size}-byte file counted as {total} bytes"
+    );
+}

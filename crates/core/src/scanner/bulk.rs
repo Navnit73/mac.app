@@ -18,6 +18,17 @@ const VREG: u32 = 1;
 const VDIR: u32 = 2;
 const VLNK: u32 = 5;
 const BUF_SIZE: usize = 256 * 1024;
+/// `FSOPT_ATTR_CMN_EXTENDED`: `forkattr` carries `ATTR_CMNEXT_*` bits.
+const FSOPT_ATTR_CMN_EXTENDED: u64 = 0x20;
+/// `ATTR_CMNEXT_PRIVATESIZE` (`off_t`): bytes not shared with clones.
+const ATTR_CMNEXT_PRIVATESIZE: u32 = 0x0000_0008;
+/// `ATTR_CMNEXT_CLONEID` (`u64`): id of the shared data stream.
+const ATTR_CMNEXT_CLONEID: u32 = 0x0000_0100;
+/// `ATTR_CMNEXT_EXT_FLAGS` (`u64`): see `EF_MAY_SHARE_BLOCKS`.
+const ATTR_CMNEXT_EXT_FLAGS: u32 = 0x0000_0200;
+const CLONE_ATTRS: u32 = ATTR_CMNEXT_PRIVATESIZE | ATTR_CMNEXT_CLONEID | ATTR_CMNEXT_EXT_FLAGS;
+/// The file may share blocks with other files (an APFS clone).
+const EF_MAY_SHARE_BLOCKS: u64 = 0x1;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BulkReader {
@@ -70,7 +81,7 @@ fn parse_entry(entry: &[u8], listing: &mut DirListing) -> Option<()> {
     let _vol = c.u32()?;
     let _dir = c.u32()?;
     let file = c.u32()?;
-    let _fork = c.u32()?;
+    let fork = c.u32()?;
 
     let mut name_ref_pos = None;
     let mut name_ref = (0i32, 0u32);
@@ -143,6 +154,25 @@ fn parse_entry(entry: &[u8], listing: &mut DirListing) -> Option<()> {
     } else {
         0
     };
+    // Extended common attributes come after all file attributes, in bit order.
+    let private = if fork & ATTR_CMNEXT_PRIVATESIZE != 0 {
+        c.i64()?.max(0) as u64
+    } else {
+        0
+    };
+    let clone_id = if fork & ATTR_CMNEXT_CLONEID != 0 {
+        c.u64()?
+    } else {
+        0
+    };
+    let ext_flags = if fork & ATTR_CMNEXT_EXT_FLAGS != 0 {
+        c.u64()?
+    } else {
+        0
+    };
+    let shares = ext_flags & EF_MAY_SHARE_BLOCKS != 0
+        && clone_id != 0
+        && fork & ATTR_CMNEXT_PRIVATESIZE != 0;
 
     let name = read_name(entry, name_ref_pos?, name_ref.0, name_ref.1);
     let kind = match objtype {
@@ -152,6 +182,11 @@ fn parse_entry(entry: &[u8], listing: &mut DirListing) -> Option<()> {
     };
     let (size_alloc, size_logical) = if kind == NodeKind::File {
         (alloc.max(0) as u64, logical.max(0) as u64)
+    } else {
+        (0, 0)
+    };
+    let (clone_id, private_alloc) = if kind == NodeKind::File && shares {
+        (clone_id, private.min(size_alloc))
     } else {
         (0, 0)
     };
@@ -166,6 +201,8 @@ fn parse_entry(entry: &[u8], listing: &mut DirListing) -> Option<()> {
         dev,
         nlink,
         st_flags,
+        clone_id,
+        private_alloc,
     });
     Some(())
 }
@@ -239,8 +276,9 @@ impl BulkReader {
             fileattr: libc::ATTR_FILE_LINKCOUNT
                 | libc::ATTR_FILE_ALLOCSIZE
                 | libc::ATTR_FILE_DATALENGTH,
-            forkattr: 0,
+            forkattr: CLONE_ATTRS,
         };
+        let mut options = FSOPT_ATTR_CMN_EXTENDED;
         let mut buf = vec![0u8; BUF_SIZE];
         let mut out = DirListing::default();
         loop {
@@ -251,11 +289,18 @@ impl BulkReader {
                     &mut attrs as *mut libc::attrlist as *mut libc::c_void,
                     buf.as_mut_ptr() as *mut libc::c_void,
                     buf.len(),
-                    0,
+                    options,
                 )
             };
             if n < 0 {
                 let e = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+                // Older systems or other filesystems may reject the clone attributes: retry
+                // without them (sizes then count clones in full) before giving up on bulk.
+                if e == libc::EINVAL && options != 0 && out.entries.is_empty() {
+                    options = 0;
+                    attrs.forkattr = 0;
+                    continue;
+                }
                 if e == libc::ENOTSUP || e == libc::EINVAL {
                     return self.fallback.read_dir(path);
                 }

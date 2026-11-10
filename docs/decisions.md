@@ -125,3 +125,9 @@ Every removal path was reviewed (Space, Duplicates, Cleanup, Applications, Undo,
 - Product owner's choice: sell the DMG from mymacstorage.com without an Apple Developer ID (no $99/year programme) for now. Buyers allow the app once in System Settings → Privacy & Security → Open Anyway; the instructions for the download page are in `docs/install-unsigned.md`.
 - The whole bundle is ad-hoc signed (`signingIdentity: "-"`). A bundle with only the linker's signature on the executable is reported as "damaged" on Apple Silicon with no Open Anyway option; a proper ad-hoc seal gets the "could not verify" prompt, which can be overridden.
 - `hardenedRuntime` is off while ad-hoc signed and must be turned on with a Developer ID (`docs/release.md`). The Apple Events entitlement and usage text are already in place for that switch.
+
+## APFS clones count once (2026-11-10)
+- Bug: with Full Disk Access a home scan reported 439 GB on a 245 GB disk. WhatsApp stores forwarded media as APFS clones (one 0.77 GiB video had 143 clones), and every clone reports its full allocated size, so the shared blocks were counted again for each copy. `du` overcounts the same way; hard links were already de-duplicated.
+- The bulk reader now also asks for `ATTR_CMNEXT_PRIVATESIZE`, `ATTR_CMNEXT_CLONEID` and `ATTR_CMNEXT_EXT_FLAGS` (`FSOPT_ATTR_CMN_EXTENDED`). Files with `EF_MAY_SHARE_BLOCKS` are recorded in a side table on `Tree`; `aggregate` counts the first member of each `(dev, clone id)` family in full and every other member at its private bytes only. If the OS rejects the extended attributes, the reader retries without them (clones then count in full, as before).
+- Result: a real home scan went from 409 GiB to 125 GiB, consistent with `df`, at about 15% extra scan time.
+- Consequence: a clone that is not the counted member shows close to 0 B in Space and Find. That is what deleting it would free. Which member is counted follows scan order, like hard links.

@@ -31,6 +31,9 @@ pub(crate) fn entry_from_metadata(name: Vec<u8>, m: &fs::Metadata) -> RawEntry {
         dev: m.st_dev() as u32,
         nlink: m.st_nlink() as u32,
         st_flags: m.st_flags(),
+        // lstat cannot see clone sharing; only the bulk reader reports it.
+        clone_id: 0,
+        private_alloc: 0,
     }
 }
 

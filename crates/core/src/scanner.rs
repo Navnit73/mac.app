@@ -21,7 +21,7 @@ use crossbeam_channel::unbounded;
 use globset::{Glob, GlobSet, GlobSetBuilder};
 
 use crate::errors::AppError;
-use crate::index::{flags, NewNode, NodeId, NodeKind, Tree, NONE, ROOT};
+use crate::index::{flags, CloneInfo, NewNode, NodeId, NodeKind, Tree, NONE, ROOT};
 use crate::models::{ScanOptions, ScanProgress, ScanSummary, SkipReason};
 use reader::{st_flags, DirListing, DirReader, RawEntry, ReadError};
 use report::ScanReport;
@@ -507,6 +507,16 @@ fn insert(
         }
         return;
     };
+
+    if e.clone_id != 0 {
+        tree.set_clone(
+            id,
+            CloneInfo {
+                clone_id: e.clone_id,
+                private_alloc: e.private_alloc,
+            },
+        );
+    }
 
     if is_dir {
         counters.dirs += 1;

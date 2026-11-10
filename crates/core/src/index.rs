@@ -5,7 +5,7 @@
 //! allocation is needed. A parent always has a smaller id than its children, which lets the
 //! aggregation pass run as two linear sweeps.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::os::unix::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -97,10 +97,21 @@ pub struct NewNode<'a> {
     pub size_alloc: u64,
 }
 
+/// APFS clone details for a file whose blocks may be shared with other files.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CloneInfo {
+    /// Identifies the shared data stream; pure clones of each other report the same id.
+    pub clone_id: u64,
+    /// Bytes held only by this file (not shared with any clone).
+    pub private_alloc: u64,
+}
+
 #[derive(Debug)]
 pub struct Tree {
     nodes: Vec<Node>,
     names: Vec<u8>,
+    /// Only files that may share blocks with clones have an entry, so this stays small.
+    clones: HashMap<NodeId, CloneInfo>,
 }
 
 impl Default for Tree {
@@ -115,6 +126,7 @@ impl Tree {
         let mut t = Tree {
             nodes: Vec::new(),
             names: Vec::new(),
+            clones: HashMap::new(),
         };
         t.nodes.push(Node {
             parent: NONE,
@@ -182,6 +194,17 @@ impl Tree {
         });
         self.nodes[parent as usize].first_child = id;
         Some(id)
+    }
+
+    /// Record that file `id` is an APFS clone that may share blocks with other files.
+    pub fn set_clone(&mut self, id: NodeId, info: CloneInfo) {
+        if self.nodes.get(id as usize).is_some() {
+            self.clones.insert(id, info);
+        }
+    }
+
+    pub fn clone_info(&self, id: NodeId) -> Option<CloneInfo> {
+        self.clones.get(&id).copied()
     }
 
     /// Raw name bytes, for building the search index.
@@ -295,6 +318,7 @@ impl Tree {
     pub fn clear_children(&mut self, id: NodeId) {
         for d in self.descendants(id) {
             self.nodes[d as usize].flags |= flags::DELETED;
+            self.clones.remove(&d);
         }
         if let Some(n) = self.nodes.get_mut(id as usize) {
             n.first_child = NONE;
@@ -315,10 +339,14 @@ impl Tree {
         (files, dirs)
     }
 
-    /// Recompute hard-link ownership and bottom-up totals for the whole tree.
+    /// Recompute hard-link and clone ownership and bottom-up totals for the whole tree.
+    ///
+    /// APFS clones share their blocks, so the shared part is counted once per clone
+    /// family (the first member seen); every other member adds only its private bytes.
     pub fn aggregate(&mut self) {
         let mut seen: HashSet<(u32, u64)> = HashSet::new();
-        for n in self.nodes.iter_mut() {
+        let mut seen_clones: HashSet<(u32, u64)> = HashSet::new();
+        for (i, n) in self.nodes.iter_mut().enumerate() {
             n.total_alloc = 0;
             n.total_logical = 0;
             n.file_count = 0;
@@ -332,7 +360,14 @@ impl Tree {
                     n.flags |= flags::HARDLINK_DUP;
                 }
             }
-            let (a, l) = n.effective();
+            let (mut a, l) = n.effective();
+            if a > 0 {
+                if let Some(c) = self.clones.get(&(i as NodeId)) {
+                    if !seen_clones.insert((n.dev, c.clone_id)) {
+                        a = c.private_alloc.min(a);
+                    }
+                }
+            }
             n.total_alloc = a;
             n.total_logical = l;
             if n.kind != NodeKind::Dir {
@@ -409,6 +444,48 @@ mod tests {
         // Aggregating twice is stable.
         t.aggregate();
         assert_eq!(t.node(r).unwrap().total_alloc, 4096);
+    }
+
+    #[test]
+    fn clones_share_blocks_counted_once() {
+        let mut t = Tree::new();
+        let r = t.add(ROOT, nn(b"/r", NodeKind::Dir, 0)).unwrap();
+        let d = t.add(r, nn(b"d", NodeKind::Dir, 0)).unwrap();
+        // Three pure clones of a 1000-byte file, one partly modified clone, one unrelated file.
+        for (name, private) in [(&b"a"[..], 0), (b"b", 0), (b"c", 0), (b"e", 300)] {
+            let id = t.add(d, nn(name, NodeKind::File, 1000)).unwrap();
+            t.set_clone(
+                id,
+                CloneInfo {
+                    clone_id: 7,
+                    private_alloc: private,
+                },
+            );
+        }
+        t.add(d, nn(b"other", NodeKind::File, 50)).unwrap();
+        t.aggregate();
+        assert_eq!(t.node(d).unwrap().total_alloc, 1000 + 300 + 50);
+        assert_eq!(t.node(ROOT).unwrap().total_alloc, 1350);
+        // Stable across re-aggregation.
+        t.aggregate();
+        assert_eq!(t.node(ROOT).unwrap().total_alloc, 1350);
+        // Different devices never share blocks.
+        let mut t2 = Tree::new();
+        let r2 = t2.add(ROOT, nn(b"/r", NodeKind::Dir, 0)).unwrap();
+        for dev in [1, 2] {
+            let mut n = nn(b"f", NodeKind::File, 1000);
+            n.dev = dev;
+            let id = t2.add(r2, n).unwrap();
+            t2.set_clone(
+                id,
+                CloneInfo {
+                    clone_id: 7,
+                    private_alloc: 0,
+                },
+            );
+        }
+        t2.aggregate();
+        assert_eq!(t2.node(r2).unwrap().total_alloc, 2000);
     }
 
     #[test]

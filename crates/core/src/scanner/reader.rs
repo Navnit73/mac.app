@@ -25,6 +25,10 @@ pub struct RawEntry {
     pub dev: u32,
     pub nlink: u32,
     pub st_flags: u32,
+    /// APFS clone family id; non-zero only when the file may share blocks with clones.
+    pub clone_id: u64,
+    /// Allocated bytes not shared with any clone (meaningful only when `clone_id != 0`).
+    pub private_alloc: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

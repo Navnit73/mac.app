@@ -31,6 +31,8 @@ fn entry(name: &[u8], kind: NodeKind, size: u64, dev: u32, inode: u64) -> RawEnt
         dev,
         nlink: 1,
         st_flags: 0,
+        clone_id: 0,
+        private_alloc: 0,
     }
 }
 
